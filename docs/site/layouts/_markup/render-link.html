@@ -19,7 +19,7 @@
 
 {{- $dest   := .Destination -}}
 {{- $repo   := .Page.Site.Params.repo   | default "https://github.com/nunorc/sim-ops-ng" -}}
-{{- $branch := .Page.Site.Params.branch | default "master" -}}
+{{- $branch := .Page.Site.Params.branch | default "main" -}}
 {{- $url    := $dest -}}
 
 {{- $parts := split $dest "#" -}}

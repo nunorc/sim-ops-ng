@@ -140,7 +140,7 @@ target = 'assets'                     # css/custom.css, which the theme concaten
 
   # where these docs live; layouts/_markup/render-link.html rewrites in-repo links in docs/*.md to blob/tree URLs
   repo   = 'https://github.com/nunorc/sim-ops-ng'
-  branch = 'master'
+  branch = 'main'
 
   # use the whole window (80rem left ~48rem for text); assets/css/custom.css caps the reading column instead
   [params.page]

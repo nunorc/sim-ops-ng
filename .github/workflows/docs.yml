@@ -5,7 +5,7 @@ name: docs
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
@@ -36,7 +36,7 @@ jobs:
         run: hugo --config docs/site/hugo.toml --minify --baseURL https://nunorc.github.io/sim-ops-ng/
 
       - name: Deploy
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
