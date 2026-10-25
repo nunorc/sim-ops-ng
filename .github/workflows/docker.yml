@@ -1,0 +1,48 @@
+name: docker
+
+# The images copy every sub-project, so any code change can break the build
+on:
+  push:
+    # branches only: on a tag, release.yml calls this workflow itself
+    branches: ["**"]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  # called by release.yml to gate a release
+  workflow_call:
+
+jobs:
+  docker-compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate compose file
+        run: docker compose config -q
+
+      - name: Build images
+        run: docker compose build
+
+      # every service has a healthcheck, so --wait fails if any of them never gets healthy
+      - name: Start the stack and wait for it to be healthy
+        run: docker compose up -d --wait --wait-timeout 180
+
+      - name: Smoke test through nginx
+        run: |
+          for p in / /api/version /admin/login /3dv/; do
+            curl -fsS -o /dev/null "http://localhost:8080$p"
+            echo "ok $p"
+          done
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

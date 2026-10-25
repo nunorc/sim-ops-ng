@@ -1,0 +1,35 @@
+# MinIO no longer publishes images, so build from a pinned source release (bump MINIO_RELEASE to upgrade).
+
+FROM golang:1.24-alpine AS build
+
+ARG MINIO_RELEASE=RELEASE.2025-10-15T17-29-55Z
+
+RUN apk add --no-cache git
+
+RUN git clone --depth 1 --branch ${MINIO_RELEASE} https://github.com/minio/minio.git /src
+
+WORKDIR /src
+
+# same flags as the upstream Makefile; gen-ldflags reads the version from the commit time
+RUN CGO_ENABLED=0 go build -tags kqueue -trimpath \
+    --ldflags "$(go run buildscripts/gen-ldflags.go)" -o /minio
+
+
+FROM alpine:3.22
+
+RUN addgroup -S -g 1000 minio && adduser -S -D -H -u 1000 -G minio minio \
+    && mkdir /data && chown minio:minio /data
+
+COPY --from=build /minio /usr/bin/minio
+
+USER minio
+
+VOLUME /data
+
+EXPOSE 9000 9001
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget -q --spider http://127.0.0.1:9000/minio/health/live || exit 1
+
+ENTRYPOINT ["/usr/bin/minio"]
+CMD ["server", "/data", "--console-address", ":9001"]

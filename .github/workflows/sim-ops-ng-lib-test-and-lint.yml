@@ -1,0 +1,44 @@
+name: sim-ops-ng-lib test and lint
+
+on:
+  push:
+    # branches only: on a tag, release.yml calls this workflow itself
+    branches: ["**"]
+    paths:
+      - "sim-ops-ng-lib/**"
+      - ".github/workflows/sim-ops-ng-lib-test-and-lint.yml"
+  pull_request:
+    paths:
+      - "sim-ops-ng-lib/**"
+      - ".github/workflows/sim-ops-ng-lib-test-and-lint.yml"
+  # called by release.yml to gate a release
+  workflow_call:
+
+jobs:
+  sim-ops-ng-lib-test-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sim-ops-ng-lib
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Cache skyfield ephemeris
+        uses: actions/cache@v6
+        with:
+          path: sim-ops-ng-lib/de421.bsp
+          key: de421-bsp
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint (pylint so, bin and tests)
+        run: sh bin/lint.sh
+
+      - name: Run tests
+        run: uv run pytest -v

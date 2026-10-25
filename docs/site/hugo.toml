@@ -1,0 +1,175 @@
+# sim-ops-ng documentation site.
+#
+# Everything Hugo needs lives in docs/site/; the markdown itself stays plain in
+# docs/ so it reads the same in an editor, on GitHub and on the published site.
+# docs/site/ is excluded from the content mount below, so the theme and these
+# templates never become pages.
+#
+# Build from the REPO ROOT, passing this file by flag, so Hugo's project root stays
+# the repo root and the content mounts below resolve without escaping it:
+#
+#   hugo server --config docs/site/hugo.toml
+#   hugo --config docs/site/hugo.toml --minify
+
+baseURL       = 'https://nunorc.github.io/sim-ops-ng/'
+title         = 'sim-ops-ng'
+theme         = 'hextra'              # a submodule under themesDir, pinned to a release tag
+themesDir     = 'docs/site/themes'
+publishDir    = 'build/site'          # inside build/, which is already gitignored
+resourceDir   = 'build/hugo-resources'
+enableGitInfo = true                  # 'Last updated' is the page's last commit date
+
+# no taxonomies: Hugo declares tags/categories by default and would publish empty trees for them
+disableKinds = ['taxonomy', 'term']
+
+# ---------------------------------------------------------------------------
+# Content comes from docs/, which is not a Hugo directory and does not become one.
+#
+# The pages are FLAT on disk — every page links to its siblings by bare filename,
+# which is what makes them readable in an editor and on GitHub. The sidebar's
+# grouping is therefore built here, by mounting the same flat directory into
+# nested content sections, rather than by moving files into subdirectories.
+# Section order is the weight in each _index.md; order within a section is the
+# weight in each page's own front matter.
+#
+# To move a page between groups, move its filename between the lists below; note
+# that this also changes the page's published URL. To add a group, add a mount and
+# a matching _index.md in docs/site/content/.
+# ---------------------------------------------------------------------------
+
+[[module.mounts]]
+source = 'docs/index.md'
+target = 'content/_index.md'          # Hugo's home page is _index.md; docs/ keeps the
+                                      # conventional index.md name for in-repo reading
+
+[[module.mounts]]
+source = 'docs'
+target = 'content'                    # ungrouped, at the top of the sidebar
+files  = ['quickstart.md']
+
+[[module.mounts]]
+source = 'docs'
+target = 'content/simulator'
+files  = ['architecture.md', 'sim_loop.md', 'scenarios.md', 'commanding.md', 'ground_station.md',
+          'rf_link.md']
+
+[[module.mounts]]
+source = 'docs'
+target = 'content/subsystems'
+files  = ['aocs.md', 'ttc.md', 'eps.md', 'dhs.md', 'payload.md']
+
+[[module.mounts]]
+source = 'docs'
+target = 'content/interfaces'
+files  = ['api.md', 'mcs.md', '3dv.md', 'admin.md']
+
+[[module.mounts]]
+source = 'docs'
+target = 'content/development'
+files  = ['configuration.md', 'deployment.md', 'testing.md', 'releasing.md']
+
+[[module.mounts]]
+source = 'docs/site/content'          # the section headers themselves
+target = 'content'
+
+[[module.mounts]]
+source = 'docs/images'
+target = 'static/images'              # the MCS screenshots; layouts/_markup/render-image.html
+                                      # rewrites the pages' relative images/ paths to here
+
+[[module.mounts]]
+source = 'docs/site/layouts'
+target = 'layouts'                    # three markdown render hooks, the section-pages
+                                      # shortcode, and one overridden theme partial
+
+[[module.mounts]]
+source = 'docs/site/assets'
+target = 'assets'                     # css/custom.css, which the theme concatenates
+                                      # after its own stylesheet
+
+# ---------------------------------------------------------------------------
+
+# the pages sit at the content root: type 'docs' (set here, not in docs/index.md) gives the home page a sidebar
+[[cascade]]
+  type = 'docs'
+
+# no [markup.tableOfContents]: Hextra builds its own table of contents and ignores that block
+[markup]
+[markup.goldmark.renderer]
+  unsafe = true                       # let raw HTML through, as GitHub's renderer does
+[markup.highlight]
+  noClasses = false                   # use Hextra's light/dark Chroma stylesheet; inlined colours never adapt
+
+# the top bar carries the sections, the sidebar the tree beneath; pageRef rather than url survives a baseURL change
+[[menu.main]]
+  name    = 'Quickstart'
+  pageRef = '/quickstart'
+  weight  = 10
+[[menu.main]]
+  name    = 'Simulator'
+  pageRef = '/simulator'
+  weight  = 20
+[[menu.main]]
+  name    = 'Sub-systems'
+  pageRef = '/subsystems'
+  weight  = 30
+[[menu.main]]
+  name    = 'Interfaces'
+  pageRef = '/interfaces'
+  weight  = 40
+[[menu.main]]
+  name    = 'Development'
+  pageRef = '/development'
+  weight  = 50
+[[menu.main]]
+  name    = 'Search'
+  weight  = 60
+  [menu.main.params]
+    type = 'search'
+[[menu.main]]
+  name   = 'GitHub'
+  url    = 'https://github.com/nunorc/sim-ops-ng'
+  weight = 70
+  [menu.main.params]
+    icon = 'github'
+
+[params]
+  description        = 'An environment for spacecraft operations simulation exercises.'
+  displayUpdatedDate = true            # uses enableGitInfo above
+  dateFormat         = 'January 2, 2006'
+
+  # where these docs live; layouts/_markup/render-link.html rewrites in-repo links in docs/*.md to blob/tree URLs
+  repo   = 'https://github.com/nunorc/sim-ops-ng'
+  branch = 'master'
+
+  # use the whole window (80rem left ~48rem for text); assets/css/custom.css caps the reading column instead
+  [params.page]
+    width = 'full'
+
+  [params.navbar]
+    displayTitle = true
+    displayLogo  = false
+    width        = 'full'             # match the page, or the bar floats narrower than it
+
+  [params.theme]
+    default       = 'system'
+    displayToggle = true
+
+  # theme footer lines off: layouts/_partials/custom/footer.html renders the footer and reads the author below
+  [params.footer]
+    enable           = true
+    displayCopyright = false
+    displayPoweredBy = false
+    width            = 'full'
+    author           = 'Nuno Carvalho'
+
+  [params.search]
+    enable = true
+    type   = 'flexsearch'
+    [params.search.flexsearch]
+      index    = 'content'
+      tokenize = 'forward'
+
+  # no 'Edit this page' link: the GitHub menu entry already leads to the repository
+  [params.editURL]
+    enable = false

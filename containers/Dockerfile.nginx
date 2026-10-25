@@ -1,0 +1,25 @@
+
+# build stage
+FROM node:24 AS build-stage
+
+# Force these empty so the UI uses relative paths through nginx (Vite reads VITE_* from the process env).
+ENV VITE_SO_API=
+ENV VITE_WS_URL=
+
+WORKDIR /app
+COPY sim-ops-ng-mcs/package*.json ./
+COPY sim-ops-ng-mcs/patches ./patches
+RUN npm ci
+COPY sim-ops-ng-mcs/ .
+RUN npm run build
+
+# production stage: runs as the unprivileged nginx user, listening on 8080
+FROM nginxinc/nginx-unprivileged:stable-alpine AS production-stage
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+RUN rm /etc/nginx/conf.d/default.conf
+COPY containers/nginx/nginx.conf /etc/nginx/conf.d/nginx.conf
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -q --spider http://127.0.0.1:8080/ || exit 1

@@ -1,0 +1,33 @@
+{{- /*
+  section-pages — render this section's child pages as a grid of cards.
+
+  Which pages belong to a section is decided by the module mounts in hugo.toml, not
+  by anything on disk under docs/site/content/, so the list is taken from
+  .Page.Pages — Hugo's default order, which is the weight order the sidebar uses.
+  Move a filename between mounts and this landing page follows on its own.
+
+  The cards come from the theme's own partials rather than a copy of their markup,
+  so a theme upgrade carries the styling with it.
+
+  @param {int} cols  Number of columns. Default 3.
+
+  @example {{< section-pages >}}
+           {{< section-pages cols="2" >}}
+*/ -}}
+
+{{- $cols := int (.Get "cols" | default 3) -}}
+
+{{- /* .RelPermalink already has baseURL's path, which relURL in the card partial would add again: trim it */ -}}
+{{- $root := strings.TrimSuffix "/" site.Home.RelPermalink -}}
+
+{{- /* build the cards as one safe HTML string, like the theme's cards shortcode; no subtitle (.Summary = the H1) */ -}}
+{{- $cards := "" -}}
+{{- range .Page.Pages -}}
+  {{- $cards = printf "%s%s" $cards (partial "shortcodes/card" (dict
+        "page"  .
+        "link"  (strings.TrimPrefix $root .RelPermalink)
+        "title" .LinkTitle
+      )) -}}
+{{- end -}}
+
+{{- partial "shortcodes/cards" (dict "cols" $cols "content" ($cards | safeHTML)) -}}

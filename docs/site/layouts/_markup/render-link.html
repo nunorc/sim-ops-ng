@@ -1,0 +1,54 @@
+{{- /*
+  Link render hook: make the docs' in-repo links work on the published site.
+
+  The pages in docs/ link into the sources they document with ordinary relative
+  paths (../sim-ops-ng-lib/so/core.py#L42, ../bin/version.sh, ../containers/), which are
+  clickable in an editor and on GitHub but have nothing to point at on a site.
+  Rewrite those to the repository at build time, and leave the markdown alone. The
+  repository and branch come from params.repo / params.branch in docs/site/hugo.toml:
+
+    ../README.md          -> the site home
+    ../<dir>/             -> <repo>/tree/<branch>/<dir>/
+    ../<path>             -> <repo>/blob/<branch>/<path>, keeping the #Lnn anchor
+    <sibling>.md#anchor   -> the sibling page's URL, keeping the anchor
+    everything else       -> untouched
+
+  Anything unresolved is emitted as written rather than dropped, so a broken link
+  looks broken instead of silently pointing at the current page.
+*/ -}}
+
+{{- $dest   := .Destination -}}
+{{- $repo   := .Page.Site.Params.repo   | default "https://github.com/nunorc/sim-ops-ng" -}}
+{{- $branch := .Page.Site.Params.branch | default "master" -}}
+{{- $url    := $dest -}}
+
+{{- $parts := split $dest "#" -}}
+{{- $path  := index $parts 0 -}}
+{{- $frag  := "" -}}
+{{- if gt (len $parts) 1 -}}
+  {{- $frag = printf "#%s" (index $parts 1) -}}
+{{- end -}}
+
+{{- if or (hasPrefix $dest "http://") (hasPrefix $dest "https://") (hasPrefix $dest "mailto:") (hasPrefix $dest "#") -}}
+  {{- /* external, or an anchor within this page */ -}}
+
+{{- else if hasPrefix $path "../" -}}
+  {{- $rel := strings.TrimPrefix "../" $path -}}
+  {{- if eq $rel "README.md" -}}
+    {{- $url = printf "%s%s" .Page.Site.Home.RelPermalink $frag -}}
+  {{- else if hasSuffix $rel "/" -}}
+    {{- $url = printf "%s/tree/%s/%s" $repo $branch $rel -}}
+  {{- else -}}
+    {{- $url = printf "%s/blob/%s/%s%s" $repo $branch $rel $frag -}}
+  {{- end -}}
+
+{{- else if hasSuffix $path ".md" -}}
+  {{- with .Page.GetPage $path -}}
+    {{- $url = printf "%s%s" .RelPermalink $frag -}}
+  {{- else -}}
+    {{- warnf "render-link: %q in %s resolves to no page" $dest $.Page.File.Path -}}
+  {{- end -}}
+{{- end -}}
+
+<a href="{{ $url | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text | safeHTML }}</a>
+{{- /**/ -}}

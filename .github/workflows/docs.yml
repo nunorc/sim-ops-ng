@@ -1,0 +1,44 @@
+
+# Build the docs/ markdown into a Hugo site and publish it to the gh-pages branch
+
+name: docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive   # the Hextra theme at docs/site/themes/hextra
+          fetch-depth: 0          # enableGitInfo needs the history
+
+      - uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: 0.165.0      # Hextra needs >= 0.146.0
+          extended: true          # not strictly needed (Hextra ships precompiled CSS), but its theme.toml asks for it
+
+      - name: Build
+        run: hugo --config docs/site/hugo.toml --minify --baseURL https://nunorc.github.io/sim-ops-ng/
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/site
+          publish_branch: gh-pages

@@ -1,0 +1,4 @@
+/* Site CSS, loaded after the theme's: caps the reading column (Hextra hardcodes 72rem); 100% removes the cap. */
+:root {
+  --hextra-max-content-width: 80rem;
+}

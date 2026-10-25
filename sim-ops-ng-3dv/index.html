@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sim-Ops-NG | 3DV</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&display=swap">
+    <style>
+      /* Palette from sim-ops-ng-mcs's dark theme (HUD VUE): teal #3cd2a5 is the default accent, not Bootstrap blue. */
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      html, body {
+        width: 100%; height: 100%;
+        background: #1d2835;
+        font-family: 'Chakra Petch', sans-serif;
+        color: #e8ecf1;
+        overflow: hidden;
+      }
+
+      /* ── Cesium container ── */
+      #cesiumContainer {
+        width: 100vw;
+        height: 100vh;
+      }
+
+      /* ── App header (mirrors MCS's .app-header), floated over the globe rather than reflowing the layout ── */
+      .app-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 52px;
+        z-index: 150;
+        display: flex;
+        align-items: center;
+        padding: 0 1.25rem;
+        background: rgba(29, 40, 53, 0.95);
+        border-bottom: 1px solid rgba(255,255,255,0.12);
+      }
+
+      .app-header .brand-text {
+        color: #e8ecf1;
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 2px;
+      }
+
+      .app-header .brand-version {
+        color: #98a4b3;
+        font-size: 0.8rem;
+        margin-left: 0.6rem;
+      }
+
+      /* ── Info panel: one bordered .panel per section, like MCS cards; the container only positions them ── */
+      #info-panel {
+        position: fixed;
+        top: calc(52px + 1rem);
+        right: 1rem;
+        width: 290px;
+        z-index: 100;
+        display: none;
+        flex-direction: column;
+        gap: 0.85rem;
+        font-size: 0.95rem;
+      }
+
+      #info-panel.visible { display: flex; }
+
+      .panel {
+        background: rgba(29, 40, 53, 0.95);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 4px;
+      }
+
+      .panel-header {
+        font-size: 0.95em;
+        font-weight: 700;
+        text-align: center;
+        color: #e8ecf1;
+        padding: 0.45rem 0.6rem;
+        border-bottom: 1px solid rgba(255,255,255,0.12);
+      }
+
+      .panel-body { padding: 0.75rem 0.9rem; }
+
+      .info-section { display: flex; flex-direction: column; gap: 0.45rem; }
+
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .info-row .label { color: #98a4b3; }
+      .info-row .value { color: #e8ecf1; font-variant-numeric: tabular-nums; }
+
+      /* Square, uppercase badges matching the MCS `.badge.rounded-0` convention */
+      .badge {
+        display: inline-block;
+        padding: 0.18rem 0.6rem;
+        border-radius: 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .badge.frame-lock  { background: #3cd2a5; color: #0d1320; }
+      .badge.bit-lock    { background: #ff9f0c; color: #0d1320; }
+      .badge.ul-bit-lock { background: #3cd2a5; color: #0d1320; }
+      .badge.psk-lock    { background: #ff9f0c; color: #0d1320; }
+      .badge.pll-lock    { background: #ff9f0c; color: #0d1320; }
+      .badge.rf-detected { background: #ff9f0c; color: #0d1320; }
+      .badge.no-rf       { background: #ff6060; color: #0d1320; }
+
+      /* connection status dot — sits next to the brand title in the header */
+      #status-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #555;
+        margin-left: 0.7rem;
+        flex-shrink: 0;
+        transition: background 0.3s;
+      }
+
+      #status-dot.connected    { background: #3cd2a5; box-shadow: 0 0 6px #3cd2a5; }
+      #status-dot.disconnected { background: #ff6060; }
+
+      #status-text {
+        font-size: 0.8rem;
+        color: #98a4b3;
+        margin-left: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- App header -->
+    <div class="app-header">
+      <span class="brand-text">SIM-OPS-NG 3DV</span>
+      <span class="brand-version" id="app-version"></span>
+      <div id="status-dot" title="Connecting…"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
+
+    <!-- Cesium full-screen globe -->
+    <div id="cesiumContainer"></div>
+
+    <!-- Real-time info panel -->
+    <div id="info-panel">
+      <div class="panel">
+        <div class="panel-header">Ground Station</div>
+        <div class="panel-body">
+          <div class="info-section">
+            <div class="info-row">
+              <span class="label">Uplink</span>
+              <span class="value" id="gs-ul">—</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Downlink</span>
+              <span class="value" id="gs-dl">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Pass Predictions</div>
+        <div class="panel-body">
+          <div class="info-section">
+            <div class="info-row">
+              <span class="label">Next AOS</span>
+              <span class="value" id="gs-aos">—</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Next 5° AOS</span>
+              <span class="value" id="gs-aos5">—</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Next 5° LOS</span>
+              <span class="value" id="gs-los5">—</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Next LOS</span>
+              <span class="value" id="gs-los">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

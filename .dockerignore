@@ -1,0 +1,13 @@
+sim-ops-ng-lib/.venv
+sim-ops-ng-lib/__pycache__
+sim-ops-ng-lib/**/__pycache__
+sim-ops-ng-mcs/node_modules
+sim-ops-ng-mcs/dist
+**/.env
+**/.env.local
+sim-ops-ng-lib/de421.bsp
+sim-ops-ng-lib/.pytest_cache
+sim-ops-ng-3dv/node_modules
+sim-ops-ng-3dv/dist
+.git
+docs/

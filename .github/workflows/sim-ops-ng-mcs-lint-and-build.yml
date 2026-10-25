@@ -1,0 +1,46 @@
+name: sim-ops-ng-mcs lint and build
+
+on:
+  push:
+    # branches only: on a tag, release.yml calls this workflow itself
+    branches: ["**"]
+    paths:
+      - "sim-ops-ng-mcs/**"
+      - ".github/workflows/sim-ops-ng-mcs-lint-and-build.yml"
+  pull_request:
+    paths:
+      - "sim-ops-ng-mcs/**"
+      - ".github/workflows/sim-ops-ng-mcs-lint-and-build.yml"
+  # called by release.yml to gate a release
+  workflow_call:
+
+jobs:
+  sim-ops-ng-mcs-lint-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sim-ops-ng-mcs
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: sim-ops-ng-mcs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npx eslint .
+
+      - name: Type check (vue-tsc)
+        run: npm run typecheck
+
+      - name: Unit tests (vitest)
+        run: npm run test:unit
+
+      - name: Build
+        run: npx vite build

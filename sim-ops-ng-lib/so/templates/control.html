@@ -1,0 +1,2067 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sim-Ops-Ng Control</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --success: #3cd2a5;
+            --warning: #ff9f0c;
+            --danger: #ff6060;
+            --info: #38bdf8;
+            --teal: #3cd2a5;
+            --neutral: #3a4a56;
+            --bg: #1d2835;
+            --surface: #28292b;
+            --surface-2: #222d3a;
+            --border: rgba(255,255,255,0.16);
+            --border-strong: rgba(255,255,255,0.25);
+            --text: rgba(255,255,255,0.82);
+            --text-muted: rgba(255,255,255,0.5);
+            --header-bg: #131c27;
+            --radius: 8px;
+            --radius-sm: 5px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        .site-header {
+            background: var(--header-bg);
+            color: #f1f5f9;
+            padding: 0 1.5rem;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+            font-size: 1.05rem;
+            letter-spacing: 0.01em;
+        }
+
+        .brand-icon {
+            width: 30px;
+            height: 30px;
+            background: var(--primary);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .brand-subtitle {
+            display: block;
+            font-size: 0.68rem;
+            color: #94a3b8;
+            font-weight: 400;
+            margin-top: -2px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .indicators {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* ── Simulation clock (toolbar) ── */
+        .sim-clock {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.32rem 0.7rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.14);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        /* push the clock to the right end of the toolbar */
+        .toolbar .sim-clock { margin-left: auto; }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.28rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+
+        .badge-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ── API connection dot (top-left, after title) ── */
+        .ws-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: #f87171;
+            transition: background 0.2s, box-shadow 0.2s;
+            cursor: default;
+        }
+        .ws-dot.connected    { background: var(--success); box-shadow: 0 0 6px var(--success); }
+        .ws-dot.reconnecting { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+        .ws-dot.disconnected { background: var(--danger); box-shadow: none; }
+
+        .badge.active    { background: rgba(22,163,74,0.18);  color: #4ade80; }
+        .badge.active    .badge-dot { background: #4ade80; box-shadow: 0 0 5px #4ade80; }
+        .badge.inactive  { background: rgba(217,119,6,0.18);  color: #fbbf24; }
+        .badge.inactive  .badge-dot { background: #fbbf24; }
+        .badge.disconnected { background: rgba(220,38,38,0.18); color: #f87171; }
+        .badge.disconnected .badge-dot { background: #f87171; }
+        /* run-status badge colors mirror the toolbar buttons: Start=success, Pause=warning, Stop=danger */
+        .badge.running   { background: rgba(60,210,165,0.18); color: var(--success); }
+        .badge.running   .badge-dot { background: var(--success); box-shadow: 0 0 5px var(--success); }
+        .badge.paused    { background: rgba(255,159,12,0.18); color: var(--warning); }
+        .badge.paused    .badge-dot { background: var(--warning); box-shadow: 0 0 5px var(--warning); }
+        .badge.stopped   { background: rgba(255,96,96,0.18);  color: var(--danger); }
+        .badge.stopped   .badge-dot { background: var(--danger); }
+
+        /* ── Main layout ── */
+        .main {
+            padding: 1.25rem 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 1.25rem;
+            background: var(--surface);
+            padding: 0.55rem 0.75rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 2px;
+        }
+
+        .btn-group .btn:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+        .btn-group .btn:not(:last-child)  { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+        .toolbar-sep {
+            width: 1px;
+            height: 26px;
+            background: var(--border);
+            margin: 0 0.2rem;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            padding: 0.3rem 0.55rem;
+            cursor: pointer;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            transition: background 0.12s, box-shadow 0.12s, transform 0.08s;
+            white-space: nowrap;
+            text-decoration: none;
+        }
+
+        /* Toolbar action buttons share a uniform width */
+        .toolbar .btn { min-width: 5.25rem; }
+
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        .btn-success  { background: var(--success); color: #082018; }
+        .btn-success:hover  { background: #2bbf93; box-shadow: 0 2px 8px rgba(60,210,165,0.30); }
+        .btn-warning  { background: var(--warning); color: #2e1f00; }
+        .btn-warning:hover  { background: #e08c00; }
+        .btn-primary  { background: var(--primary); color: #fff; }
+        .btn-primary:hover  { background: var(--primary-dark); box-shadow: 0 2px 8px rgba(59,130,246,0.35); }
+        .btn-danger   { background: var(--danger);  color: #2a0606; }
+        .btn-danger:hover   { background: #ee4d4d; }
+        .btn-secondary { background: #3a4a56; color: #e2e8f0; }
+        .btn-secondary:hover { background: #45596a; }
+        .btn-info     { background: var(--info);    color: #06222e; }
+        .btn-info:hover     { background: #1fa8e6; }
+        .btn-mode-active { background: var(--primary-dark); color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.4); }
+        .btn-outline  { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+        .btn-outline:hover  { background: var(--surface-2); color: var(--text); }
+        .btn-xs { padding: 0.18rem 0.4rem; font-size: 0.68rem; }
+
+        form { display: inline; margin: 0; padding: 0; }
+
+        /* ── Grid ── */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1200px) {
+            .grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 720px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+
+        .grid-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* ── Panel ── */
+        .panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.65rem 1rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.12s;
+        }
+
+        .panel-header:hover { background: #2a3744; }
+
+        .panel-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .panel-chevron {
+            color: var(--text-muted);
+            font-size: 0.65rem;
+            transition: transform 0.2s;
+        }
+
+        .panel-chevron.collapsed { transform: rotate(-90deg); }
+
+        .panel-body {
+            padding: 0.875rem 1rem;
+        }
+
+        .panel-body.hidden { display: none; }
+
+        /* ── Subsections ── */
+        .subsection { margin-bottom: 0.875rem; }
+        .subsection:last-child { margin-bottom: 0; }
+
+        .subsection-title {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--teal);
+            margin-bottom: 0.35rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* ── Data rows ── */
+        .data-grid { display: grid; gap: 0; }
+
+        .data-item {
+            display: grid;
+            grid-template-columns: 118px 1fr;
+            gap: 0.4rem;
+            padding: 0.1rem 0.3rem;
+            border-radius: 4px;
+            align-items: center;
+            transition: background 0.1s;
+        }
+
+        .data-item:hover { background: var(--surface-2); }
+
+        .data-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .data-value {
+            font-size: 0.74rem;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Status badges (mirrors MCS compact mode) ── */
+        .stat-badge {
+            display: inline-block;
+            padding: 0.04rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            line-height: 1.55;
+        }
+        .stat-success, .stat-teal { background: var(--teal);    color: #082018; }
+        .stat-warning             { background: var(--warning); color: #2e1f00; }
+        .stat-danger              { background: var(--danger);  color: #2a0606; }
+        .stat-neutral             { background: var(--neutral); color: var(--text); }
+
+        /* ── Timestamp chip ── */
+        .ts-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 0.18rem 0.55rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 0.65rem;
+        }
+
+        /* ── Password box ── */
+        .password-box {
+            background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(60,210,165,0.10));
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 0.65rem 0.75rem;
+            margin-bottom: 0.875rem;
+        }
+
+        .password-box-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.4rem;
+        }
+
+        .password-box-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .password-box-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.82rem;
+            color: var(--text);
+            word-break: break-all;
+            letter-spacing: 0.12rem;
+            background: rgba(0,0,0,0.25);
+            padding: 0.35rem 0.55rem;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        /* ── Breakpoints table ── */
+        .bp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+
+        .bp-table th {
+            text-align: left;
+            padding: 0.35rem 0.55rem;
+            font-size: 0.67rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .bp-table td {
+            padding: 0.42rem 0.55rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .bp-table tbody tr:last-child td { border-bottom: none; }
+        .bp-table tbody tr:hover { background: var(--surface-2); }
+
+        .bp-name { font-weight: 600; color: var(--text); }
+        .bp-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+
+        /* ── Modal ── */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            inset: 0;
+            background: rgba(15,23,42,0.65);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+
+        .modal-content {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 420px;
+            width: 90%;
+            overflow: hidden;
+        }
+
+        .modal-content-lg {
+            max-width: 800px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-content-lg .modal-body {
+            overflow: auto;
+        }
+
+        .scenario-json {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            color: var(--text);
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.85rem 1rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            tab-size: 2;
+            margin: 0;
+        }
+
+        .scenario-json .json-key     { color: #7dd3fc; font-weight: 600; }
+        .scenario-json .json-string  { color: #86efac; }
+        .scenario-json .json-number  { color: #fbbf24; }
+        .scenario-json .json-boolean { color: #c4b5fd; font-weight: 600; }
+        .scenario-json .json-null    { color: #f87171; font-style: italic; }
+
+        .scenario-link {
+            color: var(--primary);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .modal-header {
+            padding: 0.9rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .modal-body { padding: 1.25rem; }
+
+        .form-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.3rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.52rem 0.75rem;
+            margin-bottom: 0.85rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.875rem;
+            color: var(--text);
+            background: var(--surface);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+        }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            margin-bottom: 0.85rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            padding: 0.85rem 1.25rem;
+            background: var(--surface-2);
+            border-top: 1px solid var(--border);
+        }
+
+        .message {
+            padding: 0.55rem 0.7rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .message.success { background: rgba(60,210,165,0.15); color: var(--success); border: 1px solid rgba(60,210,165,0.35); }
+        .message.error   { background: rgba(255,96,96,0.15);  color: var(--danger);  border: 1px solid rgba(255,96,96,0.35); }
+        .message.info    { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.35); }
+
+        /* ── Mobile ── */
+        @media (max-width: 720px) {
+            .site-header {
+                height: auto;
+                padding: 0.6rem 0.85rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            .brand { font-size: 1.1rem; }
+            .indicators { flex-wrap: wrap; }
+            .main { padding: 0.85rem 0.7rem; }
+
+            /* ── Toolbar: stack button groups into full-width rows of large, equal buttons ── */
+            .toolbar { gap: 0.5rem; padding: 0.6rem; }
+            .toolbar-sep { display: none; }
+            .toolbar .sim-clock {
+                margin-left: 0;
+                flex: 1 1 100%;
+                justify-content: center;
+                font-size: 0.9rem;
+                padding: 0.5rem 0.7rem;
+            }
+
+            /* each group occupies its own row, its buttons share the width */
+            .toolbar > .btn-group { flex: 1 1 100%; }
+            .btn-group {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.4rem;
+                width: 100%;
+            }
+            /* buttons wrap onto multiple rows, so give each its own corners */
+            .btn-group .btn:not(:first-child),
+            .btn-group .btn:not(:last-child) { border-radius: var(--radius-sm); }
+
+            /* flexible targets: buttons, form-wrapped buttons, and forms (start/stop/sign-out) */
+            .toolbar .btn,
+            .toolbar .btn-group form,
+            .toolbar > form { flex: 1 1 7rem; min-width: 0; }
+            .toolbar .btn-group form,
+            .toolbar > form { display: flex; }
+            .toolbar .btn-group form > .btn,
+            .toolbar > form > .btn { width: 100%; }
+
+            /* large, legible buttons everywhere on mobile */
+            .btn {
+                font-size: 0.9rem;
+                padding: 0.65rem 0.7rem;
+            }
+            .toolbar .btn {
+                font-size: 0.95rem;
+                padding: 0.72rem 0.6rem;
+                min-width: 0;
+            }
+            .btn-xs { padding: 0.4rem 0.6rem; font-size: 0.82rem; }
+
+            /* ── Readable telemetry / panels ── */
+            .panel-title { font-size: 1rem; }
+            .subsection-title { font-size: 0.8rem; }
+            .ts-chip { font-size: 0.82rem; }
+            .data-item { grid-template-columns: 135px 1fr; padding: 0.22rem 0.3rem; }
+            .data-label { font-size: 0.85rem; }
+            .data-value { font-size: 0.87rem; }
+            .stat-badge { font-size: 0.78rem; padding: 0.1rem 0.45rem; }
+            .bp-table { display: block; overflow-x: auto; white-space: nowrap; font-size: 0.86rem; }
+            .form-label { font-size: 0.88rem; }
+            .form-input { font-size: 1rem; }   /* 16px avoids iOS zoom-on-focus */
+            .badge { font-size: 0.8rem; }
+        }
+
+        @media (max-width: 420px) {
+            .brand-subtitle { display: none; }
+            /* two buttons per row on the narrowest screens */
+            .toolbar .btn,
+            .toolbar .btn-group form,
+            .toolbar > form { flex-basis: calc(50% - 0.2rem); }
+        }
+    </style>
+    <script>
+        // text from the backend or a form, before it goes into innerHTML
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
+        }
+
+        // WS auth via Sec-WebSocket-Protocol, not the URL: "sim-ops" + "sim-ops.password.<unpadded base64url>"
+        function wsAuthProtocols(password) {
+            const bytes = new TextEncoder().encode(password);
+            const b64 = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            return ['sim-ops', `sim-ops.password.${b64}`];
+        }
+
+        class SimOpsClient {
+            constructor(wsUrl, adminPassword, userPassword) {
+                this.wsUrl = wsUrl;
+                this.adminPassword = adminPassword;
+                this.userPassword = userPassword;
+                this.ws = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 10;
+                this.connect();
+            }
+
+            connect() {
+                try {
+                    this.ws = new WebSocket(this.wsUrl, wsAuthProtocols(this.adminPassword));
+                    this.ws.onopen = () => {
+                        this.reconnectAttempts = 0;
+                        this.updateConnectionStatus(true);
+                    };
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.updateUI(data);
+                        } catch (e) {
+                            console.error('❌ [WebSocket] Failed to parse message:', e);
+                        }
+                    };
+                    this.ws.onerror = (error) => {
+                        console.error('❌ [WebSocket] Error:', error);
+                        // onclose fires after onerror; status is updated there
+                    };
+                    this.ws.onclose = (event) => {
+                        this.reconnectAttempts++;
+                        if (this.reconnectAttempts <= this.maxReconnectAttempts) {
+                            const delayMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+                            this.updateConnectionStatus('reconnecting');
+                            setTimeout(() => this.connect(), delayMs);
+                        } else {
+                            console.error('❌ [WebSocket] Max reconnection attempts reached');
+                            this.updateConnectionStatus('disconnected');
+                        }
+                    };
+                } catch (error) {
+                    console.error('❌ [WebSocket] Failed to create connection:', error);
+                    this.updateConnectionStatus('disconnected');
+                }
+            }
+
+            updateConnectionStatus(state) {
+                const el = document.getElementById('ws-status');
+                if (!el) return;
+                if (state === true || state === 'connected') {
+                    el.className = 'ws-dot connected';
+                    el.title = 'API connected';
+                } else if (state === 'reconnecting') {
+                    el.className = 'ws-dot reconnecting';
+                    el.title = 'API reconnecting…';
+                } else {
+                    el.className = 'ws-dot disconnected';
+                    el.title = 'API disconnected';
+                }
+            }
+
+            updateSimTime(ts) {
+                const el = document.getElementById('sim-time');
+                if (el) el.textContent = '🕐 ' + ((ts && ts > 0) ? this.formatTimestamp(ts) : '—');
+            }
+
+            updateRunningStatus(running, paused) {
+                const el = document.getElementById('running-status');
+                if (!el) return;
+                const [label, cls] = !running ? ['Stopped', 'stopped']
+                    : paused ? ['Paused', 'paused']
+                    : ['Running', 'running'];
+                el.innerHTML = `<span class="badge-dot"></span>${label}`;
+                el.className = 'badge ' + cls;
+            }
+
+            updateUI(message) {
+                try {
+                    if (message.type !== 'state') return;
+                    this.updateSimTime(message.ts);
+                    this.updateRunningStatus(message.running, message.paused);
+                    this.updateDataProxyStatus(message.data_proxy, message.ground_station && message.ground_station.status_dl);
+                    if (message.spacecraft) this.updateScState(message.spacecraft);
+                    if (message.ground_station) this.updateGsState(message.ground_station);
+                } catch (error) {
+                    console.error('❌ Error updating UI:', error, 'Data:', message);
+                }
+            }
+
+            updateDataProxyStatus(mode, statusDl) {
+                const badge   = document.getElementById('data-proxy-status');
+                const btnEgse = document.getElementById('btn-egse');
+                const btnSle  = document.getElementById('btn-sle');
+                if (!mode) return;
+                if (badge) {
+                    badge.lastChild.textContent = mode === 'SLE'
+                        ? 'SLE (' + (statusDl || 'NO_RF') + ')'
+                        : 'EGSE';
+                    // Mirror the DL-state coloring: FRAME_LOCK green, NO_RF red, intermediate locks amber.
+                    const cls = (mode === 'EGSE' || statusDl === 'FRAME_LOCK') ? 'active'
+                        : (statusDl === 'NO_RF' || !statusDl) ? 'disconnected'
+                        : 'inactive';
+                    badge.className = 'badge ' + cls;
+                }
+                if (btnEgse) btnEgse.className = 'btn ' + (mode === 'EGSE' ? 'btn-mode-active' : 'btn-secondary');
+                if (btnSle)  btnSle.className  = 'btn ' + (mode === 'SLE'  ? 'btn-mode-active' : 'btn-secondary');
+            }
+
+            // Set a data-value element as a colored status badge; kind: success|teal|warning|danger|neutral|null.
+            setBadge(id, text, kind) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const t = (text === undefined || text === null || text === '') ? 'N/A' : text;
+                el.textContent = t;
+                el.className = (kind && t !== 'N/A') ? ('data-value stat-badge stat-' + kind) : 'data-value';
+            }
+
+            updateScState(sc) {
+                const u = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                const b = (id, text, kind) => this.setBadge(id, text, kind);
+                const onOff   = v => v === 'on' ? 'teal' : 'danger';
+                const statusDl = v => v === 'NO_RF' ? 'danger'
+                    : v === 'FRAME_LOCK' ? 'success'
+                    : (v === 'RF_DETECTED' || v === 'PLL_LOCK' || v === 'PSK_LOCK' || v === 'BIT_LOCK') ? 'warning'
+                    : 'neutral';
+                if (sc.ts) { const el = document.getElementById('sc-ts'); if (el) el.textContent = '🕐 ' + this.formatTimestamp(sc.ts); }
+                u('sc-aocs-chain', sc.aocs_chain || 'N/A');
+                u('sc-aocs-mode', sc.aocs_mode || 'N/A');
+                b('sc-aocs-valid', sc.aocs_valid, sc.aocs_valid === 'valid' ? 'teal' : sc.aocs_valid === 'not_valid' ? 'danger' : sc.aocs_valid === 'unknown' ? 'warning' : null);
+                u('sc-aocs-prev-mode', sc.aocs_prev_mode || 'N/A');
+                u('sc-aocs-sun-angle', this.formatNumber(sc.aocs_sun_angle, 3) + '°');
+                u('sc-aocs-nadir-angle', this.formatNumber(sc.aocs_nadir_angle, 3) + '°');
+                u('sc-aocs-damp', this.formatNumber(sc.aocs_damp, 2));
+                if (sc.aocs_rotation) u('sc-aocs-rot', `[${sc.aocs_rotation.map(x => this.formatNumber(x, 1)).join(', ')}]°`);
+                if (sc.aocs_rates) u('sc-aocs-rate', `[${sc.aocs_rates.map(x => this.formatNumber(x, 2)).join(', ')}]°/s`);
+                if (sc.aocs_position) u('sc-aocs-pos', `[${sc.aocs_position.map(x => this.formatNumber(x, 1)).join(', ')}] km`);
+                u('sc-ttc-chain', sc.ttc_chain || 'N/A');
+                b('sc-ttc-mcu', sc.ttc_mcu, sc.ttc_mcu === 'nominal' ? 'success' : 'danger');
+                u('sc-ttc-mode', sc.ttc_mode || 'N/A');
+                u('sc-ttc-s-antenna', sc.ttc_s_antenna || 'N/A');
+                u('sc-ttc-x-antenna', sc.ttc_x_antenna || 'N/A');
+                u('sc-ttc-snr-ul', this.formatNumber(sc.ttc_eb_no_ul, 1) + ' dB');
+                b('sc-ttc-state-ul', sc.ttc_state_ul, statusDl(sc.ttc_state_ul));
+                b('sc-ttc-coherent', sc.ttc_coherent, (sc.ttc_coherent && sc.ttc_coherent !== 'off') ? 'success' : 'danger');
+                b('sc-ttc-s-tx-status', sc.ttc_s_tx_status, onOff(sc.ttc_s_tx_status));
+                b('sc-ttc-s-rx-status', sc.ttc_s_rx_status, onOff(sc.ttc_s_rx_status));
+                b('sc-ttc-x-tx-status', sc.ttc_x_tx_status, onOff(sc.ttc_x_tx_status));
+                b('sc-ttc-x-rx-status', sc.ttc_x_rx_status, onOff(sc.ttc_x_rx_status));
+                b('sc-ttc-ping-ack', sc.ttc_ping_ack || '0', (sc.ttc_ping_ack > 0) ? 'success' : 'neutral');
+                u('sc-ttc-ranging', sc.ttc_ranging || 'N/A');
+                u('sc-eps-chain', sc.eps_chain || 'N/A');
+                u('sc-eps-power', this.formatNumber(sc.eps_net_power, 2) + ' W');
+                b('sc-eps-sol-array', sc.eps_sol_array ? sc.eps_sol_array.join(', ') : 'N/A', 'neutral');
+                u('sc-eps-dod', this.formatNumber(sc.eps_battery_dod, 1) + '%');
+                u('sc-eps-temp', this.formatNumber(sc.eps_temperature, 1) + '°C');
+                b('sc-eps-acu', sc.eps_acu || 'N/A', sc.eps_acu ? (sc.eps_acu === 'nominal' ? 'success' : 'danger') : null);
+                b('sc-eps-pdu', sc.eps_pdu || 'N/A', sc.eps_pdu ? (sc.eps_pdu === 'nominal' ? 'success' : 'danger') : null);
+                b('sc-eps-power-status', sc.eps_power_status || 'N/A', sc.eps_power_status === 'power_positive' ? 'success' : sc.eps_power_status === 'power_negative' ? 'warning' : sc.eps_power_status ? 'danger' : null);
+                u('sc-eps-source', sc.eps_power_source || 'N/A');
+                u('sc-dhs-chain', sc.dhs_chain || 'N/A');
+                b('sc-dhs-mode', sc.dhs_obsw_mode, sc.dhs_obsw_mode === 'nominal' ? 'teal' : 'danger');
+                b('sc-dhs-mem-dump', sc.dhs_mem_dump_enabled ? 'Yes' : 'No', sc.dhs_mem_dump_enabled ? 'teal' : 'neutral');
+                u('sc-dhs-memory', this.formatNumber(sc.dhs_memory, 1) + '%');
+                u('sc-dhs-tm', sc.dhs_tm_counter || '0');
+                u('sc-dhs-tc', sc.dhs_tc_counter || '0');
+                b('sc-pl-gnss', sc.pl_gnss_status, onOff(sc.pl_gnss_status));
+                u('sc-pl-gnss-pos', sc.pl_gnss_pos ? sc.pl_gnss_pos.map(v => this.formatNumber(v, 2)).join(', ') : 'N/A');
+                b('sc-pl-camera', sc.pl_camera_status, onOff(sc.pl_camera_status));
+                u('sc-pl-camera-config', sc.pl_camera_config || 'N/A');
+                b('sc-pl-sdr', sc.pl_sdr_status, onOff(sc.pl_sdr_status));
+                u('sc-pl-sdr-config', sc.pl_sdr_config || 'N/A');
+                b('sc-ov-no-tm', sc.ov_no_tm ? 'Yes' : 'No', sc.ov_no_tm ? 'danger' : 'neutral');
+                b('sc-frame-quality', sc.frame_quality, sc.frame_quality === 'good' ? 'teal' : sc.frame_quality === 'bad' ? 'danger' : sc.frame_quality === 'unknown' ? 'warning' : null);
+                b('sc-frame-checks', sc.frame_checks, sc.frame_checks === 'enabled' ? 'teal' : sc.frame_checks ? 'danger' : null);
+                b('sc-is-sunlit', sc.is_sunlit ? 'Yes' : 'No', sc.is_sunlit ? 'teal' : 'neutral');
+                b('gs-is-sunlit', sc.is_sunlit ? 'Yes' : 'No', sc.is_sunlit ? 'teal' : 'neutral');
+            }
+
+            updateGsState(gs) {
+                const u = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                const b = (id, text, kind) => this.setBadge(id, text, kind);
+                const statusDl = v => v === 'NO_RF' ? 'danger'
+                    : v === 'FRAME_LOCK' ? 'success'
+                    : (v === 'RF_DETECTED' || v === 'PLL_LOCK' || v === 'PSK_LOCK' || v === 'BIT_LOCK') ? 'warning'
+                    : 'neutral';
+                if (gs.ts) { const el = document.getElementById('gs-ts'); if (el) el.textContent = '🕐 ' + this.formatTimestamp(gs.ts); }
+                u('gs-name', gs.name || 'N/A');
+                u('gs-position', gs.position ? gs.position.map(v => this.formatNumber(v, 2)).join(', ') : 'N/A');
+                u('gs-latitude', this.formatNumber(gs.latitude, 4) + '°');
+                u('gs-longitude', this.formatNumber(gs.longitude, 4) + '°');
+                u('gs-altitude', this.formatNumber(gs.altitude, 1) + ' m');
+                b('gs-carrier-ul', gs.carrier_ul, gs.carrier_ul === 'on' ? 'success' : gs.carrier_ul ? 'danger' : null);
+                u('gs-ul-state', gs.ul_state || 'N/A');
+                u('gs-ul-link-margin', this.formatNumber(gs.ul_link_margin, 1) + ' dB');
+                u('gs-power-ul', this.formatNumber(gs.power_ul, 1) + ' dBm');
+                u('gs-freq-ul', this.formatNumber(gs.freq_ul_mhz, 3) + ' MHz');
+                u('gs-c-no-dl', this.formatNumber(gs.c_no_dl, 1) + ' dBHz');
+                u('gs-dl-snr', this.formatNumber(gs.eb_no_dl, 1) + ' dB');
+                u('gs-link-margin-dl', this.formatNumber(gs.link_margin_dl, 1) + ' dB');
+                u('gs-ber-dl', gs.ber_dl !== undefined && gs.ber_dl !== null ? Number(gs.ber_dl).toExponential(2) : 'N/A');
+                u('gs-fer-dl', gs.fer_dl !== undefined && gs.fer_dl !== null ? Number(gs.fer_dl).toExponential(2) : 'N/A');
+                b('gs-status-dl', gs.status_dl, statusDl(gs.status_dl));
+                b('gs-frame-quality', gs.frame_quality, gs.frame_quality === 'good' ? 'teal' : gs.frame_quality === 'bad' ? 'danger' : gs.frame_quality === 'unknown' ? 'warning' : null);
+                b('gs-frame-checks', gs.frame_checks, gs.frame_checks === 'enabled' ? 'teal' : gs.frame_checks ? 'danger' : null);
+                b('gs-ov-no-tm', gs.ov_no_tm ? 'Yes' : 'No', gs.ov_no_tm ? 'danger' : 'neutral');
+                b('gs-ov-no-tc', gs.ov_no_tc ? 'Yes' : 'No', gs.ov_no_tc ? 'danger' : 'neutral');
+                u('gs-dl-modulation', gs.dl_modulation || 'N/A');
+                u('gs-dl-coding', gs.dl_coding || 'N/A');
+                u('gs-freq-dl', this.formatNumber(gs.freq_dl_mhz, 3) + ' MHz');
+                u('gs-doppler-shift-dl', this.formatNumber(gs.doppler_shift_dl, 4) + ' MHz');
+                u('gs-elev', gs.elevation ? this.formatNumber(gs.elevation, 2) + '°' : 'N/A');
+                u('gs-azim', gs.azimuth ? this.formatNumber(gs.azimuth, 2) + '°' : 'N/A');
+                u('gs-dist', gs.distance ? this.formatNumber(gs.distance, 2) + ' km' : 'N/A');
+                b('gs-auto-track', gs.auto_track ? 'Yes' : 'No', gs.auto_track ? 'teal' : 'neutral');
+                b('gs-program-track', gs.program_track ? 'Yes' : 'No', gs.program_track ? 'teal' : 'danger');
+                b('gs-auto-range', gs.auto_range ? 'Yes' : 'No', gs.auto_range ? 'teal' : 'danger');
+                b('gs-doppler', gs.doppler_enabled ? 'Yes' : 'No', gs.doppler_enabled ? 'teal' : 'danger');
+                u('gs-doppler-vel', gs.doppler_velocity ? this.formatNumber(gs.doppler_velocity, 3) + ' km/s' : 'N/A');
+                u('gs-spectrum-ul-len', gs.spectrum_ul ? gs.spectrum_ul.length : '0');
+                u('gs-spectrum-dl-len', gs.spectrum_dl ? gs.spectrum_dl.length : '0');
+                u('gs-mode', gs.mode || 'N/A');
+                u('gs-band-ul', gs.band_ul || 'N/A');
+                u('gs-modes', gs.modes ? gs.modes.join(', ') : 'N/A');
+                b('gs-sweep-done', gs.sweep_done ? 'Yes' : 'No', gs.sweep_done ? 'success' : 'neutral');
+                u('gs-sweep-count', gs.sweep_count || '0');
+                u('gs-next-aos', this.diffDatesStr(gs.next_pass_start, gs.ts));
+                u('gs-next-los', this.diffDatesStr(gs.next_pass_end, gs.ts));
+                u('gs-next-5-aos', this.diffDatesStr(gs.next_5_start, gs.ts));
+                u('gs-next-5-los', this.diffDatesStr(gs.next_5_end, gs.ts));
+            }
+
+            formatTimestamp(ts) {
+                if (ts <= 0) return 'N/A';
+                const date = new Date(ts * 1000);
+                return date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            }
+
+            formatNumber(value, decimals) {
+                if (value === undefined || value === null) return '0';
+                return parseFloat(value).toFixed(decimals);
+            }
+
+            // Relative time until a pass event (epoch seconds), e.g. "in 1h 5m 12s" or "_"; mirrors OM.vue.
+            diffDatesStr(later, ts) {
+                if (later < ts)
+                    return '_';
+
+                let delta = Math.abs(later - ts);
+
+                let days = Math.floor(delta/86400);
+                delta -= days * 86400;
+
+                let hours = Math.floor(delta/3600) % 24;
+                delta -= hours * 3600;
+
+                let minutes = Math.floor(delta/60) % 60;
+                delta -= minutes * 60;
+
+                let seconds = Math.floor(delta % 60);
+
+                let res = 'in ';
+                if (days > 0)
+                    res += days+'d '
+                if (hours > 0)
+                    res += hours+'h '
+                if (minutes > 0)
+                    res += minutes+'m '
+                if (seconds >= 0)
+                    res += seconds+'s '
+
+                return res;
+            }
+        }
+
+        function togglePanel(header) {
+            const body = header.nextElementSibling;
+            const chevron = header.querySelector('.panel-chevron');
+            body.classList.toggle('hidden');
+            chevron.classList.toggle('collapsed');
+        }
+
+        // Render a JSON value as syntax-highlighted HTML, with a .json-* span per token type.
+        function syntaxHighlightJSON(value) {
+            let json = JSON.stringify(value, null, 2);
+            json = json
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            const pattern = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g;
+            return json.replace(pattern, function (match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    cls = /:$/.test(match) ? 'json-key' : 'json-string';
+                } else if (/^(true|false)$/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (match === 'null') {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function openScenarioModal() {
+            const modal = document.getElementById('scenario-modal');
+            const pre = document.getElementById('scenario-json');
+            if (pre) pre.innerHTML = syntaxHighlightJSON(SCENARIO_DATA);
+            if (modal) modal.classList.add('show');
+        }
+
+        function closeScenarioModal() {
+            const modal = document.getElementById('scenario-modal');
+            if (modal) modal.classList.remove('show');
+        }
+
+        async function openLoadScenarioModal() {
+            const modal = document.getElementById('load-scenario-modal');
+            const select = document.getElementById('load-scenario-select');
+            const messageDiv = document.getElementById('load-scenario-message');
+            messageDiv.innerHTML = '';
+            select.innerHTML = '<option value="">Loading...</option>';
+            if (modal) modal.classList.add('show');
+
+            try {
+                const response = await fetch('{{ url_for("list_scenarios") }}');
+                if (!response.ok) throw new Error('Failed to load scenario list');
+                const data = await response.json();
+                const files = data.scenarios || [];
+                if (files.length === 0) {
+                    select.innerHTML = '<option value="">No scenarios found</option>';
+                } else {
+                    select.innerHTML = files.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('❌ Error loading scenario list:', error);
+                select.innerHTML = '<option value="">Failed to load scenarios</option>';
+            }
+        }
+
+        function closeLoadScenarioModal() {
+            const modal = document.getElementById('load-scenario-modal');
+            if (modal) modal.classList.remove('show');
+        }
+
+        async function loadScenarioFile() {
+            const select = document.getElementById('load-scenario-select');
+            const filename = select.value;
+            const messageDiv = document.getElementById('load-scenario-message');
+            const loadBtn = document.getElementById('load-scenario-btn');
+
+            if (!filename) {
+                messageDiv.innerHTML = '<div class="message error">Please select a scenario file.</div>';
+                return;
+            }
+            if (!confirm(`Load scenario "${filename}"? This will restart the simulation if it is running.`)) return;
+
+            loadBtn.disabled = true;
+            messageDiv.innerHTML = '<div class="message info">Loading scenario...</div>';
+
+            try {
+                const response = await fetch('{{ url_for("load_scenario_api") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success">Scenario loaded successfully. Reloading page...</div>';
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    messageDiv.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error || 'Failed to load scenario')}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Error loading scenario:', error);
+                messageDiv.innerHTML = '<div class="message error">Connection error. Please try again.</div>';
+            } finally {
+                loadBtn.disabled = false;
+            }
+        }
+
+        function openPasswordModal() {
+            const modal = document.getElementById('password-modal');
+            if (modal) modal.classList.add('show');
+            setTimeout(() => document.getElementById('new-password').focus(), 100);
+        }
+
+        function closePasswordModal() {
+            const modal = document.getElementById('password-modal');
+            if (modal) {
+                modal.classList.remove('show');
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
+                document.getElementById('password-message').innerHTML = '';
+                document.getElementById('show-password-check').checked = false;
+                toggleShowPassword();
+            }
+        }
+
+        function toggleShowPassword() {
+            const isChecked = document.getElementById('show-password-check').checked;
+            document.getElementById('new-password').type = isChecked ? 'text' : 'password';
+            document.getElementById('confirm-password').type = isChecked ? 'text' : 'password';
+        }
+
+        function toggleUserPasswordVisibility() {
+            const passwordDisplay = document.getElementById('user-password-display');
+            const toggleBtn = document.getElementById('user-password-toggle-btn');
+            const actualPassword = passwordDisplay.dataset.password;
+            const isHidden = passwordDisplay.dataset.hidden === 'true';
+            if (isHidden) {
+                passwordDisplay.textContent = actualPassword;
+                passwordDisplay.dataset.hidden = 'false';
+                toggleBtn.textContent = 'Hide';
+            } else {
+                passwordDisplay.textContent = '•'.repeat(actualPassword.length);
+                passwordDisplay.dataset.hidden = 'true';
+                toggleBtn.textContent = 'Show';
+            }
+        }
+
+        async function changePassword() {
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const messageDiv = document.getElementById('password-message');
+            const changeBtn = document.getElementById('change-password-btn');
+
+            if (!newPassword || !confirmPassword) {
+                messageDiv.innerHTML = '<div class="message error">Both password fields are required.</div>';
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                messageDiv.innerHTML = '<div class="message error">Passwords do not match.</div>';
+                return;
+            }
+
+            changeBtn.disabled = true;
+            messageDiv.innerHTML = '<div class="message info">Updating password...</div>';
+
+            try {
+                const response = await fetch('{{ url_for("change_password_api") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: newPassword })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success">Password changed successfully. Reloading…</div>';
+                    // reload to re-fetch the password from the backend and reconnect telemetry with it
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    messageDiv.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error || 'Failed to change password')}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Error changing password:', error);
+                messageDiv.innerHTML = '<div class="message error">Connection error. Please try again.</div>';
+            } finally {
+                changeBtn.disabled = false;
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            const modal = document.getElementById('password-modal');
+            if (!modal.classList.contains('show')) return;
+            if (event.key === 'Enter')  { event.preventDefault(); changePassword(); }
+            if (event.key === 'Escape') { event.preventDefault(); closePasswordModal(); }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            const modal = document.getElementById('scenario-modal');
+            if (!modal || !modal.classList.contains('show')) return;
+            if (event.key === 'Escape') { event.preventDefault(); closeScenarioModal(); }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            const modal = document.getElementById('load-scenario-modal');
+            if (!modal || !modal.classList.contains('show')) return;
+            if (event.key === 'Escape') { event.preventDefault(); closeLoadScenarioModal(); }
+        });
+
+        const SCENARIO_DATA = {{ scenario | tojson }};
+
+        // Allow Enter key to submit from numeric command inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            ['cmd-dhs_memory', 'cmd-eps_battery_dod'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') sendCommand(id.replace('cmd-', ''), e.target.value);
+                });
+            });
+        });
+
+        let client;
+        window.addEventListener('load', function() {
+            document.querySelectorAll('.panel-header').forEach(h => {
+                h.addEventListener('click', function() { togglePanel(this); });
+            });
+            const passwordDisplay = document.getElementById('user-password-display');
+            if (passwordDisplay) {
+                const actualPassword = passwordDisplay.dataset.password;
+                passwordDisplay.textContent = '•'.repeat(actualPassword.length);
+            }
+            const wsScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsBase = {{ ws_url | tojson }} || `${wsScheme}//${window.location.host}/api/ws`;
+            const adminPassword = {{ admin_password | tojson }};
+            const wsUrl = wsBase.replace(/\/api\/ws$/, '/api/ws/admin');
+            client = new SimOpsClient(wsUrl, adminPassword, {{ user_password | tojson }});
+
+            // Load initial overrides
+            loadOverrides();
+        });
+
+        // Override attribute → allowed enum values (null = free text number)
+        const OVERRIDE_OPTIONS = {
+            frame_quality:    ['good', 'bad', 'unknown'],
+            status_dl:        ['NO_RF', 'RF_DETECTED', 'PLL_LOCK', 'PSK_LOCK', 'BIT_LOCK', 'FRAME_LOCK'],
+            max_status_dl:    ['NO_RF', 'RF_DETECTED', 'PLL_LOCK', 'PSK_LOCK', 'BIT_LOCK', 'FRAME_LOCK'],
+            max_c_no_dl:      null,
+            max_eb_no_dl:     null,
+            no_tm:            ['true', 'false'],
+            no_tc:            ['true', 'false'],
+            aocs_mode:        ['SUN', 'TARGET', 'NADIR', 'RATEDAMPING', 'MONITORING'],
+            ttc_mcu:          ['enabled', 'disabled', 'unknown', 'nominal', 'safe', 'on', 'off', 'not_valid', 'valid', 'error'],
+            ttc_mode:         ['S_Sup_LBR', 'S_Sup_HBR', 'X_Sup_LBR', 'X_Sup_HBR', 'S_Res_LBR', 'X_Res_LBR', 'S_Sub_LBR', 'X_Sub_LBR'],
+            ttc_s_antenna:    ['LGA_RHC', 'LGA_LHC'],
+            ttc_x_antenna:    ['LGA_RHC', 'LGA_LHC', 'MGA', 'HGA'],
+            ttc_s_tx_status:  ['on', 'off'],
+            ttc_s_rx_status:  ['on', 'off'],
+            ttc_x_tx_status:  ['on', 'off'],
+            ttc_x_rx_status:  ['on', 'off'],
+            eps_sol_array:    ['sun', 'no_sun'],
+            dhs_obsw_mode:    ['enabled', 'disabled', 'unknown', 'nominal', 'safe', 'on', 'off', 'not_valid', 'valid', 'error'],
+            pl_gnss_status:    ['enabled', 'disabled', 'unknown', 'nominal', 'safe', 'on', 'off', 'not_valid', 'valid', 'error'],
+            pl_camera_status: ['enabled', 'disabled', 'unknown', 'nominal', 'safe', 'on', 'off', 'not_valid', 'valid', 'error'],
+        };
+
+        function updateOverrideValueField() {
+            const attr = document.getElementById('override-attr').value;
+            const container = document.getElementById('override-value-container');
+            if (!attr) {
+                container.innerHTML = '<input type="text" id="override-value" class="form-input" placeholder="Select an override first" disabled />';
+                return;
+            }
+            const options = OVERRIDE_OPTIONS[attr];
+            if (options) {
+                const opts = options.map(o => `<option value="${o}">${o}</option>`).join('');
+                container.innerHTML = `<select id="override-value" class="form-input">${opts}</select>`;
+            } else {
+                container.innerHTML = '<input type="number" id="override-value" class="form-input" placeholder="Enter numeric value" />';
+            }
+        }
+
+        // Override Management Functions
+        async function loadOverrides() {
+            try {
+                const response = await fetch('{{ url_for("get_overrides") }}');
+                if (!response.ok) throw new Error('Failed to load overrides');
+                const data = await response.json();
+                updateOverridesList(data.overrides || []);
+            } catch (error) {
+                console.error('❌ Error loading overrides:', error);
+            }
+        }
+
+        function updateOverridesList(overrides) {
+            const list = document.getElementById('overrides-list');
+            const empty = document.getElementById('overrides-empty');
+
+            list.innerHTML = '';
+
+            if (!overrides || overrides.length === 0) {
+                list.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            list.style.display = 'grid';
+
+            overrides.forEach(([key, value]) => {
+                const item = document.createElement('div');
+                item.className = 'data-item';
+                item.innerHTML = `
+                    <span class="data-label">${escapeHtml(key)}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="data-value">${escapeHtml(value)}</span>
+                        <button type="button" class="btn btn-danger btn-xs" style="margin-left: 0.5rem;">Remove</button>
+                    </div>
+                `;
+                // a listener, not an inline onclick: the key never has to be quoted into JS
+                item.querySelector('button').addEventListener('click', () => removeOverride(key));
+                list.appendChild(item);
+            });
+        }
+
+        async function addOverride() {
+            const attr = document.getElementById('override-attr').value;
+            const value = document.getElementById('override-value').value;
+            const messageDiv = document.getElementById('override-message');
+
+            if (!attr) {
+                messageDiv.innerHTML = '<div class="message error">Please select an override type.</div>';
+                return;
+            }
+
+            messageDiv.innerHTML = '<div class="message info">Adding override...</div>';
+
+            try {
+                const response = await fetch('{{ url_for("set_override") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ attr, value })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to set override');
+                }
+
+                messageDiv.innerHTML = '<div class="message success">Override added successfully.</div>';
+                document.getElementById('override-attr').value = '';
+                updateOverrideValueField();
+
+                // Reload the overrides list
+                setTimeout(loadOverrides, 500);
+            } catch (error) {
+                console.error('❌ Error adding override:', error);
+                messageDiv.innerHTML = `<div class="message error">Error: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function sendCommand(control, value) {
+            const messageDiv = document.getElementById('cmd-message');
+            if (value === '' || value === null || value === undefined) {
+                messageDiv.innerHTML = '<div class="message error">Please enter a value.</div>';
+                return;
+            }
+            messageDiv.innerHTML = '<div class="message info">Sending command...</div>';
+            try {
+                const response = await fetch('{{ url_for("send_command") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ control, value })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="message success">${escapeHtml(control)} → ${escapeHtml(value)} sent (${escapeHtml(data.status || 'OK')})</div>`;
+                } else {
+                    messageDiv.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error || 'Failed to send command')}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="message error">Connection error. Please try again.</div>';
+            }
+            setTimeout(() => { messageDiv.innerHTML = ''; }, 4000);
+        }
+
+        async function runTrigger(triggerId) {
+            const messageDiv = document.getElementById('trigger-message');
+            messageDiv.innerHTML = `<div class="message info">Running trigger ${triggerId}...</div>`;
+            try {
+                const response = await fetch(`{{ url_for("run_trigger", trigger_id=0).rsplit("/", 1)[0] }}/${triggerId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="message success">Trigger ${triggerId} executed (${data.steps} steps)</div>`;
+                    loadOverrides();
+                } else {
+                    messageDiv.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error || 'Failed to run trigger')}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="message error">Connection error. Please try again.</div>';
+            }
+            setTimeout(() => { messageDiv.innerHTML = ''; }, 4000);
+        }
+
+        async function triggerSafeMode() {
+            if (!confirm('Trigger spacecraft safe mode?')) return;
+            const messageDiv = document.getElementById('trigger-message');
+            messageDiv.innerHTML = '<div class="message info">Triggering safe mode...</div>';
+            try {
+                const response = await fetch('{{ url_for("trigger_safe_mode") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="message success">Safe mode triggered (${escapeHtml(data.result?.status || 'OK')})</div>`;
+                } else {
+                    messageDiv.innerHTML = `<div class="message error">Error: ${escapeHtml(data.error || 'Failed to trigger safe mode')}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="message error">Connection error. Please try again.</div>';
+            }
+            setTimeout(() => { messageDiv.innerHTML = ''; }, 4000);
+        }
+
+        async function removeOverride(attr) {
+            if (!confirm(`Remove override for "${attr}"?`)) return;
+
+            try {
+                const response = await fetch('{{ url_for("unset_override") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ attr })
+                });
+
+                if (!response.ok) throw new Error('Failed to remove override');
+
+                // Reload the overrides list
+                loadOverrides();
+            } catch (error) {
+                console.error('❌ Error removing override:', error);
+                alert(`Error removing override: ${error.message}`);
+            }
+        }
+
+        async function setDataProxy(mode) {
+            try {
+                await fetch('{{ url_for("set_data_proxy") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode })
+                });
+            } catch (error) {
+                console.error('❌ Error setting data proxy mode:', error);
+            }
+        }
+    </script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="brand">
+            <div class="brand-icon">🛰</div>
+            <div>
+                Sim-Ops-Ng
+                <span class="brand-subtitle">Mission Control</span>
+            </div>
+            <span id="ws-status" class="ws-dot disconnected" title="API connection"></span>
+        </div>
+        <div class="indicators">
+            <div id="running-status" class="badge stopped"><span class="badge-dot"></span>Stopped</div>
+            {% if data_proxy == 'EGSE' or status_dl == 'FRAME_LOCK' %}{% set dp_class = 'active' %}{% elif status_dl == 'NO_RF' %}{% set dp_class = 'disconnected' %}{% else %}{% set dp_class = 'inactive' %}{% endif %}
+            <div id="data-proxy-status" class="badge {{ dp_class }}"><span class="badge-dot"></span>{% if data_proxy == 'SLE' %}SLE ({{ status_dl }}){% else %}EGSE{% endif %}</div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="toolbar">
+            <div class="btn-group">
+                <form action="{{ url_for('start') }}" method="post" onsubmit="return confirm('Start the simulation?');">
+                    <button type="submit" class="btn btn-success">▶ Start</button>
+                </form>
+                <form action="{{ url_for('pause') }}" method="post" onsubmit="return confirm('Pause the simulation?');">
+                    <button type="submit" class="btn btn-warning">⏸ Pause</button>
+                </form>
+                <form action="{{ url_for('resume') }}" method="post" onsubmit="return confirm('Resume the simulation?');">
+                    <button type="submit" class="btn btn-primary">⏯ Resume</button>
+                </form>
+                <form action="{{ url_for('stop') }}" method="post" onsubmit="return confirm('Stop the simulation?');">
+                    <button type="submit" class="btn btn-danger">⏹ Stop</button>
+                </form>
+                <form action="{{ url_for('previous_breakpoint') }}" method="post" onsubmit="return confirm('Move to the previous breakpoint?');">
+                    <button type="submit" class="btn btn-secondary">⏮ Previous</button>
+                </form>
+                <form action="{{ url_for('next_breakpoint') }}" method="post" onsubmit="return confirm('Move to the next breakpoint?');">
+                    <button type="submit" class="btn btn-secondary">⏭ Next</button>
+                </form>
+            </div>
+            <div class="toolbar-sep"></div>
+            <div class="btn-group">
+                <button type="button" id="btn-egse" class="btn {{ 'btn-mode-active' if data_proxy == 'EGSE' else 'btn-secondary' }}" onclick="setDataProxy('EGSE')">EGSE</button>
+                <button type="button" id="btn-sle"  class="btn {{ 'btn-mode-active' if data_proxy == 'SLE'  else 'btn-secondary' }}" onclick="setDataProxy('SLE')">SLE</button>
+            </div>
+            <div class="toolbar-sep"></div>
+            <button type="button" class="btn btn-info" onclick="openPasswordModal()">🔐 Password</button>
+            <form action="{{ url_for('logout') }}" method="post">
+                <button type="submit" class="btn btn-outline">Sign Out</button>
+            </form>
+            <div id="sim-time" class="sim-clock" title="Simulation time (UTC)">🕐 —</div>
+        </div>
+
+        <div class="grid">
+
+            <!-- Spacecraft -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🛰️ Spacecraft</div>
+                    <span class="panel-chevron">▼</span>
+                </div>
+                <div class="panel-body">
+                    <div class="ts-chip" id="sc-ts">—</div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">AOCS</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Chain</span><span id="sc-aocs-chain" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Mode</span><span id="sc-aocs-mode" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Valid</span><span id="sc-aocs-valid" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Prev Mode</span><span id="sc-aocs-prev-mode" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Sun Angle</span><span id="sc-aocs-sun-angle" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Nadir Angle</span><span id="sc-aocs-nadir-angle" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Damping</span><span id="sc-aocs-damp" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Rotation</span><span id="sc-aocs-rot" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Rate</span><span id="sc-aocs-rate" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Position</span><span id="sc-aocs-pos" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">TTC</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Chain</span><span id="sc-ttc-chain" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">MCU</span><span id="sc-ttc-mcu" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Mode</span><span id="sc-ttc-mode" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">S Antenna</span><span id="sc-ttc-s-antenna" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">X Antenna</span><span id="sc-ttc-x-antenna" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">SNR UL</span><span id="sc-ttc-snr-ul" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">State UL</span><span id="sc-ttc-state-ul" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Coherent</span><span id="sc-ttc-coherent" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">S TX Status</span><span id="sc-ttc-s-tx-status" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">S RX Status</span><span id="sc-ttc-s-rx-status" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">X TX Status</span><span id="sc-ttc-x-tx-status" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">X RX Status</span><span id="sc-ttc-x-rx-status" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Ping ACK</span><span id="sc-ttc-ping-ack" class="data-value">0</span></div>
+                            <div class="data-item"><span class="data-label">Ranging</span><span id="sc-ttc-ranging" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">EPS</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Chain</span><span id="sc-eps-chain" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Power</span><span id="sc-eps-power" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Solar Array</span><span id="sc-eps-sol-array" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Batt DoD</span><span id="sc-eps-dod" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Temperature</span><span id="sc-eps-temp" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">ACU</span><span id="sc-eps-acu" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">PDU</span><span id="sc-eps-pdu" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Power Status</span><span id="sc-eps-power-status" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Power Source</span><span id="sc-eps-source" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">DHS</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Chain</span><span id="sc-dhs-chain" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Mode</span><span id="sc-dhs-mode" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Mem Dump</span><span id="sc-dhs-mem-dump" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Memory</span><span id="sc-dhs-memory" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">TM Counter</span><span id="sc-dhs-tm" class="data-value">0</span></div>
+                            <div class="data-item"><span class="data-label">TC Counter</span><span id="sc-dhs-tc" class="data-value">0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Payload</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">GNSS Status</span><span id="sc-pl-gnss" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">GNSS Position</span><span id="sc-pl-gnss-pos" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Camera</span><span id="sc-pl-camera" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Camera Config</span><span id="sc-pl-camera-config" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">SDR</span><span id="sc-pl-sdr" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">SDR Config</span><span id="sc-pl-sdr-config" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Book-keeping</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">OV No TM</span><span id="sc-ov-no-tm" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Frame Quality</span><span id="sc-frame-quality" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Frame Checks</span><span id="sc-frame-checks" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Sunlit</span><span id="sc-is-sunlit" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ground Station -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📡 Ground Station</div>
+                    <span class="panel-chevron">▼</span>
+                </div>
+                <div class="panel-body">
+                    <div class="ts-chip" id="gs-ts">—</div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Info</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Name</span><span id="gs-name" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Position</span><span id="gs-position" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Latitude</span><span id="gs-latitude" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Longitude</span><span id="gs-longitude" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Altitude</span><span id="gs-altitude" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Sunlit</span><span id="gs-is-sunlit" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Passes</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Next AOS</span><span id="gs-next-aos" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Next LOS</span><span id="gs-next-los" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Next 5° AOS</span><span id="gs-next-5-aos" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Next 5° LOS</span><span id="gs-next-5-los" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Uplink</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Carrier</span><span id="gs-carrier-ul" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">State</span><span id="gs-ul-state" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Link Margin</span><span id="gs-ul-link-margin" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Power</span><span id="gs-power-ul" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">UL Frequency</span><span id="gs-freq-ul" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Downlink</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">C/N0</span><span id="gs-c-no-dl" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">SNR</span><span id="gs-dl-snr" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Link Margin</span><span id="gs-link-margin-dl" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">BER</span><span id="gs-ber-dl" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">FER</span><span id="gs-fer-dl" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Status</span><span id="gs-status-dl" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Frame Quality</span><span id="gs-frame-quality" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Frame Checks</span><span id="gs-frame-checks" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">OV No TM</span><span id="gs-ov-no-tm" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">OV No TC</span><span id="gs-ov-no-tc" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Modulation</span><span id="gs-dl-modulation" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Coding</span><span id="gs-dl-coding" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">DL Frequency</span><span id="gs-freq-dl" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Doppler Shift</span><span id="gs-doppler-shift-dl" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Tracking</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Elevation</span><span id="gs-elev" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Azimuth</span><span id="gs-azim" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Distance</span><span id="gs-dist" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Auto Track</span><span id="gs-auto-track" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Program Track</span><span id="gs-program-track" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Auto Range</span><span id="gs-auto-range" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Doppler & Spectrum</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Doppler</span><span id="gs-doppler" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Doppler Velocity</span><span id="gs-doppler-vel" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Spectrum UL</span><span id="gs-spectrum-ul-len" class="data-value">0</span></div>
+                            <div class="data-item"><span class="data-label">Spectrum DL</span><span id="gs-spectrum-dl-len" class="data-value">0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Mode & Configuration</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Mode</span><span id="gs-mode" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">UL Band</span><span id="gs-band-ul" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Available Modes</span><span id="gs-modes" class="data-value">N/A</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Sweep</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Done</span><span id="gs-sweep-done" class="data-value">N/A</span></div>
+                            <div class="data-item"><span class="data-label">Count</span><span id="gs-sweep-count" class="data-value">0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">RF Conditions</div>
+                        <div class="data-grid">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario & Breakpoints -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📋 Scenario</div>
+                    <span class="panel-chevron">▼</span>
+                </div>
+                <div class="panel-body">
+                    <div class="password-box">
+                        <div class="password-box-header">
+                            <span class="password-box-label">User Password</span>
+                            <button type="button" id="user-password-toggle-btn" onclick="toggleUserPasswordVisibility()" class="btn btn-info btn-xs">Show</button>
+                        </div>
+                        <div id="user-password-display" data-hidden="true" data-password="{{ user_password }}" class="password-box-value"></div>
+                    </div>
+
+                    {% if scenario %}
+                    <div class="subsection">
+                        <div class="subsection-title">Info</div>
+                        <div class="data-grid">
+                            <div class="data-item"><span class="data-label">Scenario</span><span class="data-value">{% if scenario %}<a href="#" class="scenario-link" onclick="openScenarioModal(); return false;">{{ scenario.name or 'N/A' }}</a>{% else %}N/A{% endif %}</span></div>
+                            <div class="data-item"><span class="data-label">Breakpoint</span><span class="data-value">{{ breakpoint.name or 'N/A' }}</span></div>
+                            <div class="data-item"><span class="data-label">Time Factor</span><span class="data-value">{{ scenario.time_factor }}</span></div>
+                        </div>
+                    </div>
+                    {% if scenario.tle %}
+                    <div class="subsection">
+                        <div class="subsection-title">TLE</div>
+                        <pre style="font-size:0.72rem;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:0.5rem 0.65rem;white-space:pre-wrap;word-break:break-all;margin:0;">{{ scenario.tle }}</pre>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+
+                    <div class="subsection">
+                        <button type="button" class="btn btn-secondary" onclick="openLoadScenarioModal()">📂 Load Scenario</button>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">Breakpoints</div>
+                        {% if breakpoints %}
+                            <table class="bp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Begin</th>
+                                        <th>End</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for bp in breakpoints %}
+                                    <tr>
+                                        <td class="bp-name">{{ bp['name'] }}</td>
+                                        <td class="bp-time">{{ bp['begin'] }}</td>
+                                        <td class="bp-time">{{ bp['end'] }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="empty-state">No breakpoints available</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overrides + State Updates column -->
+            <div class="grid-col">
+
+            <!-- Overrides -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">⚙️ Overrides</div>
+                    <span class="panel-chevron">▼</span>
+                </div>
+                <div class="panel-body">
+                    <div class="subsection">
+                        <div class="subsection-title">Active Overrides</div>
+                        <div id="overrides-list" class="data-grid">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                        <div id="overrides-empty" class="empty-state">No active overrides</div>
+                    </div>
+
+                    <div class="subsection" style="margin-top: 0.875rem; border-top: 1px solid var(--border); padding-top: 0.875rem;">
+                        <div class="subsection-title">Add Override</div>
+                        <div style="display: grid; gap: 0.6rem;">
+                            <div>
+                                <label class="form-label" for="override-attr">Override</label>
+                                <select id="override-attr" class="form-input" onchange="updateOverrideValueField()">
+                                    <option value="">-- Select Override --</option>
+                                    <optgroup label="Ground Station">
+                                        <option value="frame_quality">frame_quality</option>
+                                        <option value="status_dl">status_dl</option>
+                                        <option value="max_status_dl">max_status_dl</option>
+                                        <option value="max_c_no_dl">max_c_no_dl</option>
+                                        <option value="max_eb_no_dl">max_eb_no_dl</option>
+                                        <option value="no_tm">no_tm</option>
+                                        <option value="no_tc">no_tc</option>
+                                    </optgroup>
+                                    <optgroup label="AOCS">
+                                        <option value="aocs_mode">aocs_mode</option>
+                                    </optgroup>
+                                    <optgroup label="TTC">
+                                        <option value="ttc_mcu">ttc_mcu</option>
+                                        <option value="ttc_mode">ttc_mode</option>
+                                        <option value="ttc_s_antenna">ttc_s_antenna</option>
+                                        <option value="ttc_x_antenna">ttc_x_antenna</option>
+                                        <option value="ttc_s_tx_status">ttc_s_tx_status</option>
+                                        <option value="ttc_s_rx_status">ttc_s_rx_status</option>
+                                        <option value="ttc_x_tx_status">ttc_x_tx_status</option>
+                                        <option value="ttc_x_rx_status">ttc_x_rx_status</option>
+                                    </optgroup>
+                                    <optgroup label="EPS">
+                                        <option value="eps_sol_array">eps_sol_array</option>
+                                    </optgroup>
+                                    <optgroup label="DHS">
+                                        <option value="dhs_obsw_mode">dhs_obsw_mode</option>
+                                    </optgroup>
+                                    <optgroup label="Payload">
+                                        <option value="pl_gnss_status">pl_gnss_status</option>
+                                        <option value="pl_camera_status">pl_camera_status</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label" for="override-value">Value</label>
+                                <div id="override-value-container">
+                                    <input type="text" id="override-value" class="form-input" placeholder="Select an override first" disabled />
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary" onclick="addOverride()" style="align-self: flex-end;">Add Override</button>
+                        </div>
+                        <div id="override-message" style="margin-top: 0.5rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Triggers -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">⚡ Triggers</div>
+                    <span class="panel-chevron">▼</span>
+                </div>
+                <div class="panel-body">
+                    <div id="trigger-message" style="margin-bottom: 0.5rem;"></div>
+                    <div style="display: flex; gap: 0.6rem;">
+                        <button type="button" class="btn btn-secondary" onclick="runTrigger(1)">Trigger 1</button>
+                        <button type="button" class="btn btn-secondary" onclick="runTrigger(2)">Trigger 2</button>
+                        <button type="button" class="btn btn-danger" onclick="triggerSafeMode()">Safe Mode</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- State Updates -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🖥️ State Updates</div>
+                    <span class="panel-chevron">▼</span>
+                </div>
+                <div class="panel-body">
+                    <div id="cmd-message" style="margin-bottom: 0.5rem;"></div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">AOCS</div>
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <span class="data-label">aocs_mode</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-aocs_mode" class="form-input" style="margin:0;flex:1;">
+                                        <option value="SUN">SUN</option>
+                                        <option value="TARGET">TARGET</option>
+                                        <option value="NADIR">NADIR</option>
+                                        <option value="RATEDAMPING">RATEDAMPING</option>
+                                        <option value="MONITORING">MONITORING</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('aocs_mode', document.getElementById('cmd-aocs_mode').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">aocs_valid</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-aocs_valid" class="form-input" style="margin:0;flex:1;">
+                                        <option value="valid">valid</option>
+                                        <option value="not_valid">not_valid</option>
+                                        <option value="unknown">unknown</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('aocs_valid', document.getElementById('cmd-aocs_valid').value)">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">TTC</div>
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <span class="data-label">ttc_mode</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_mode" class="form-input" style="margin:0;flex:1;">
+                                        <option value="S_Sup_LBR">S_Sup_LBR</option>
+                                        <option value="S_Sup_HBR">S_Sup_HBR</option>
+                                        <option value="X_Sup_LBR">X_Sup_LBR</option>
+                                        <option value="X_Sup_HBR">X_Sup_HBR</option>
+                                        <option value="S_Res_LBR">S_Res_LBR</option>
+                                        <option value="X_Res_LBR">X_Res_LBR</option>
+                                        <option value="S_Sub_LBR">S_Sub_LBR</option>
+                                        <option value="X_Sub_LBR">X_Sub_LBR</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_mode', document.getElementById('cmd-ttc_mode').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_s_antenna</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_s_antenna" class="form-input" style="margin:0;flex:1;">
+                                        <option value="LGA_RHC">LGA_RHC</option>
+                                        <option value="LGA_LHC">LGA_LHC</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_s_antenna', document.getElementById('cmd-ttc_s_antenna').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_x_antenna</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_x_antenna" class="form-input" style="margin:0;flex:1;">
+                                        <option value="MGA">MGA</option>
+                                        <option value="HGA">HGA</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_x_antenna', document.getElementById('cmd-ttc_x_antenna').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_mcu</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_mcu" class="form-input" style="margin:0;flex:1;">
+                                        <option value="nominal">nominal</option>
+                                        <option value="error">error</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_mcu', document.getElementById('cmd-ttc_mcu').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_s_tx_status</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_s_tx_status" class="form-input" style="margin:0;flex:1;">
+                                        <option value="on">on</option>
+                                        <option value="off">off</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_s_tx_status', document.getElementById('cmd-ttc_s_tx_status').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_s_rx_status</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_s_rx_status" class="form-input" style="margin:0;flex:1;">
+                                        <option value="on">on</option>
+                                        <option value="off">off</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_s_rx_status', document.getElementById('cmd-ttc_s_rx_status').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_x_tx_status</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_x_tx_status" class="form-input" style="margin:0;flex:1;">
+                                        <option value="on">on</option>
+                                        <option value="off">off</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_x_tx_status', document.getElementById('cmd-ttc_x_tx_status').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">ttc_x_rx_status</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-ttc_x_rx_status" class="form-input" style="margin:0;flex:1;">
+                                        <option value="on">on</option>
+                                        <option value="off">off</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('ttc_x_rx_status', document.getElementById('cmd-ttc_x_rx_status').value)">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">DHS</div>
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <span class="data-label">dhs_obsw_mode</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-dhs_obsw_mode" class="form-input" style="margin:0;flex:1;">
+                                        <option value="nominal">nominal</option>
+                                        <option value="safe">safe</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('dhs_obsw_mode', document.getElementById('cmd-dhs_obsw_mode').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">dhs_memory (%)</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <input type="number" id="cmd-dhs_memory" class="form-input" style="margin:0;flex:1;" min="0" max="100" step="0.1" placeholder="0–100" />
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('dhs_memory', document.getElementById('cmd-dhs_memory').value)">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="subsection">
+                        <div class="subsection-title">EPS</div>
+                        <div class="data-grid">
+                            <div class="data-item">
+                                <span class="data-label">eps_acu</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-eps_acu" class="form-input" style="margin:0;flex:1;">
+                                        <option value="nominal">nominal</option>
+                                        <option value="control_err">control_err</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('eps_acu', document.getElementById('cmd-eps_acu').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">eps_pdu</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <select id="cmd-eps_pdu" class="form-input" style="margin:0;flex:1;">
+                                        <option value="nominal">nominal</option>
+                                        <option value="error">error</option>
+                                    </select>
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('eps_pdu', document.getElementById('cmd-eps_pdu').value)">Send</button>
+                                </div>
+                            </div>
+                            <div class="data-item">
+                                <span class="data-label">eps_battery_dod (%)</span>
+                                <div style="display:flex;gap:0.4rem;align-items:center;">
+                                    <input type="number" id="cmd-eps_battery_dod" class="form-input" style="margin:0;flex:1;" min="0" max="100" step="0.1" placeholder="0–100" />
+                                    <button type="button" class="btn btn-primary btn-xs" onclick="sendCommand('eps_battery_dod', document.getElementById('cmd-eps_battery_dod').value)">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div><!-- end grid-col -->
+
+        </div><!-- end .grid -->
+
+    <!-- Password Change Modal -->
+    <div id="password-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Change Password</div>
+            <div class="modal-body">
+                <label class="form-label" for="new-password">New Password</label>
+                <input type="password" id="new-password" class="form-input" placeholder="Enter new password" autocomplete="new-password" />
+                <label class="form-label" for="confirm-password">Confirm Password</label>
+                <input type="password" id="confirm-password" class="form-input" placeholder="Confirm new password" autocomplete="new-password" />
+                <label class="form-check">
+                    <input type="checkbox" id="show-password-check" onchange="toggleShowPassword()" />
+                    Show password
+                </label>
+                <div id="password-message"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closePasswordModal()">Cancel</button>
+                <button type="button" id="change-password-btn" class="btn btn-primary" onclick="changePassword()">Change Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scenario JSON Modal -->
+    <div id="scenario-modal" class="modal">
+        <div class="modal-content modal-content-lg">
+            <div class="modal-header">Scenario: {{ scenario.name or 'N/A' }}</div>
+            <div class="modal-body">
+                <pre id="scenario-json" class="scenario-json"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeScenarioModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Scenario Modal -->
+    <div id="load-scenario-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Load Scenario</div>
+            <div class="modal-body">
+                <label class="form-label" for="load-scenario-select">Scenario File</label>
+                <select id="load-scenario-select" class="form-input">
+                    <option value="">Loading...</option>
+                </select>
+                <div id="load-scenario-message"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeLoadScenarioModal()">Cancel</button>
+                <button type="button" id="load-scenario-btn" class="btn btn-primary" onclick="loadScenarioFile()">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('password-modal').addEventListener('click', function(event) {
+            if (event.target === this) closePasswordModal();
+        });
+        document.getElementById('scenario-modal').addEventListener('click', function(event) {
+            if (event.target === this) closeScenarioModal();
+        });
+        document.getElementById('load-scenario-modal').addEventListener('click', function(event) {
+            if (event.target === this) closeLoadScenarioModal();
+        });
+    </script>
+</body>
+</html>

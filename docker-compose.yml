@@ -1,0 +1,152 @@
+
+services:
+  sim-ops-ng-minio:
+    # built from a pinned source release (MinIO no longer publishes images), healthcheck in the Dockerfile
+    build:
+      context: .
+      dockerfile: containers/Dockerfile.minio
+    image: sim-ops-ng-minio
+    container_name: sim-ops-ng-minio
+    restart: unless-stopped
+    volumes:
+      - minio-data:/data
+    networks:
+      - sim-ops-net
+    ports:
+      # MinIO console: localhost only, it is reachable with the root credentials
+      - "127.0.0.1:9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${SIM_OPS_NG_MINIO_ROOT_USER:-myusername}
+      - MINIO_ROOT_PASSWORD=${SIM_OPS_NG_MINIO_ROOT_PASSWORD:-mypassword}
+
+  # sim, api and admin share one image (built once, by this service) with different commands
+  sim-ops-ng-sim:
+    build:
+      context: .
+      dockerfile: containers/Dockerfile.lib
+    image: sim-ops-ng-lib
+    container_name: sim-ops-ng-sim
+    command: ["/app/.venv/bin/python", "bin/sim-ops.py"]
+    restart: unless-stopped
+    networks:
+      - sim-ops-net
+    depends_on:
+      sim-ops-ng-minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5555), 2).close()"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    environment:
+      - SIM_OPS_NG_SCENARIO=${SIM_OPS_NG_SCENARIO:-data/demo.json}
+      # container networking is fixed here, not taken from .env (whose values are for manual dev)
+      - SIM_OPS_NG_SOCKET_HOST=0.0.0.0
+      - SIM_OPS_NG_SOCKET_PORT=5555
+      - SIM_OPS_NG_MINIO_ENDPOINT=sim-ops-ng-minio:9000
+      - SIM_OPS_NG_MINIO_ROOT_USER=${SIM_OPS_NG_MINIO_ROOT_USER:-myusername}
+      - SIM_OPS_NG_MINIO_ROOT_PASSWORD=${SIM_OPS_NG_MINIO_ROOT_PASSWORD:-mypassword}
+
+  sim-ops-ng-api:
+    image: sim-ops-ng-lib
+    pull_policy: never
+    container_name: sim-ops-ng-api
+    command: ["/app/.venv/bin/python", "bin/sim-ops-api.py"]
+    restart: unless-stopped
+    networks:
+      - sim-ops-net
+    depends_on:
+      sim-ops-ng-sim:
+        condition: service_healthy
+      sim-ops-ng-minio:
+        condition: service_healthy
+    healthcheck:
+      # a bare TCP connect: an HTTP probe would add a uvicorn access-log line every interval
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import socket; socket.create_connection(('127.0.0.1', 9111), 2).close()"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    environment:
+      # container networking is fixed here (nginx proxies to :9111), not taken from .env
+      - SIM_OPS_NG_API_HOST=0.0.0.0
+      - SIM_OPS_NG_API_PORT=9111
+      - SIM_OPS_NG_SOCKET_HOST=sim-ops-ng-sim
+      - SIM_OPS_NG_SOCKET_PORT=5555
+      - SIM_OPS_NG_ADMIN_PASSWORD=${SIM_OPS_NG_ADMIN_PASSWORD:-admin123}
+      - SIM_OPS_NG_USER_PASSWORD=${SIM_OPS_NG_USER_PASSWORD:-user123}
+      - SIM_OPS_NG_MINIO_ENDPOINT=sim-ops-ng-minio:9000
+      - SIM_OPS_NG_MINIO_ROOT_USER=${SIM_OPS_NG_MINIO_ROOT_USER:-myusername}
+      - SIM_OPS_NG_MINIO_ROOT_PASSWORD=${SIM_OPS_NG_MINIO_ROOT_PASSWORD:-mypassword}
+
+  sim-ops-ng-admin:
+    image: sim-ops-ng-lib
+    pull_policy: never
+    container_name: sim-ops-ng-admin
+    command: ["/app/.venv/bin/python", "bin/admin.py"]
+    restart: unless-stopped
+    networks:
+      - sim-ops-net
+    depends_on:
+      sim-ops-ng-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9131/login', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    environment:
+      # container networking is fixed here (nginx proxies to :9131), not taken from .env
+      - SIM_OPS_NG_ADMIN_HOST=0.0.0.0
+      - SIM_OPS_NG_ADMIN_PORT=9131
+      - SIM_OPS_NG_ADMIN_WORKERS=${SIM_OPS_NG_ADMIN_WORKERS:-4}
+      - SIM_OPS_NG_API_URL=http://sim-ops-ng-api:9111
+      - SIM_OPS_NG_ADMIN_PASSWORD=${SIM_OPS_NG_ADMIN_PASSWORD:-admin123}
+      - SIM_OPS_NG_USER_PASSWORD=${SIM_OPS_NG_USER_PASSWORD:-user123}
+      # empty -> the admin app generates a random key at startup (sessions end on restart)
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
+
+  sim-ops-ng-nginx:
+    build:
+      context: .
+      dockerfile: containers/Dockerfile.nginx
+    container_name: sim-ops-ng-nginx
+    restart: unless-stopped
+    networks:
+      - sim-ops-net
+    ports:
+      - "8080:8080"
+    # healthchecks for nginx and 3dv are in their Dockerfiles
+    depends_on:
+      sim-ops-ng-api:
+        condition: service_healthy
+      sim-ops-ng-admin:
+        condition: service_healthy
+      sim-ops-ng-3dv:
+        condition: service_healthy
+
+  sim-ops-ng-3dv:
+    build:
+      context: .
+      dockerfile: containers/Dockerfile.3dv
+      args:
+        # Baked into the bundle at build time, supply it via the root .env
+        - VITE_CESIUM_TOKEN=${VITE_CESIUM_TOKEN:-}
+    container_name: sim-ops-ng-3dv
+    restart: unless-stopped
+    networks:
+      - sim-ops-net
+    depends_on:
+      sim-ops-ng-api:
+        condition: service_healthy
+
+networks:
+  sim-ops-net:
+    driver: bridge
+
+volumes:
+  minio-data:
+
+

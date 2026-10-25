@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  # the test workflows, run against the tagged commit: the release is only created if all pass
+  lib:
+    uses: ./.github/workflows/sim-ops-ng-lib-test-and-lint.yml
+  mcs:
+    uses: ./.github/workflows/sim-ops-ng-mcs-lint-and-build.yml
+  viewer-3dv:
+    uses: ./.github/workflows/sim-ops-ng-3dv-lint-and-build.yml
+  docker:
+    uses: ./.github/workflows/docker.yml
+
+  release:
+    needs: [lib, mcs, viewer-3dv, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check all components match VERSION
+        run: sh bin/version.sh check
+
+      - name: Build release zip and notes
+        run: sh bin/release.sh "${{ github.ref_name }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "dist/sim-ops-ng-${{ github.ref_name }}.zip" \
+            --title "sim-ops-ng ${{ github.ref_name }}" \
+            --notes-file "dist/sim-ops-ng-${{ github.ref_name }}-notes.md"

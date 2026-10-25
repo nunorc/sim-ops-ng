@@ -1,0 +1,28 @@
+{{- /* The whole site footer; use only classes the theme already uses, as Hextra's Tailwind CSS is precompiled. */ -}}
+
+{{- $repo := site.Params.repo -}}
+{{- $branch := site.Params.branch | default "master" -}}
+{{- $author := site.Params.footer.author -}}
+{{- $year := now.Format "2006" -}}
+
+{{- $linkClass := "hx:transition-colors hx:hover:text-gray-900 hx:dark:hover:text-gray-100" -}}
+
+<div class="hx:flex hx:flex-col hx:gap-4 hx:py-12 hx:text-sm hx:sm:flex-row hx:sm:items-center hx:sm:justify-between">
+  <div>
+    {{- with $author -}}
+      © {{ $year }} {{ . }}.
+    {{- end }}
+    {{- with $repo }}
+      Released under the
+      <a class="{{ $linkClass }} hx:underline" href="{{ . }}/blob/{{ $branch }}/LICENSE">MIT License</a>.
+    {{- end -}}
+  </div>
+
+  <div class="hx:flex hx:gap-4">
+    {{- with $repo -}}
+      <a class="{{ $linkClass }}" href="{{ . }}">Source</a>
+      <a class="{{ $linkClass }}" href="{{ . }}/issues">Issues</a>
+    {{- end -}}
+    <a class="{{ $linkClass }}" href="https://gohugo.io/" target="_blank" rel="noopener noreferrer">Built with Hugo</a>
+  </div>
+</div>

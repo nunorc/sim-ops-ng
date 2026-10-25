@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "so"
+version = "0.0.1"
+description = "Sim-Ops NG spacecraft operations simulator: simulation engine, REST/WebSocket API and admin panel"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.116.1",
+    "flask>=3.1.2",
+    "minio>=7.2.16",
+    "minsp>=0.0.4",
+    "numpy>=2.3.3",
+    "requests>=2.32.5",
+    "scipy>=1.16.2",
+    "skyfield>=1.53",
+    "uvicorn>=0.35.0",
+    "gunicorn>=23.0.0",
+    "simpy>=4.1.1",
+    "websockets>=15.0.1",
+    "urllib3>=2.6.2",
+    "python-dotenv>=1.1.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["so"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pylint.main]
+ignore = ["templates"]
+ignored-modules = ["scipy.special"]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint."messages control"]
+disable = [
+    # pylint's own default-suppressed meta messages
+    "raw-checker-failed",
+    "bad-inline-option",
+    "locally-disabled",
+    "file-ignored",
+    "suppressed-message",
+    "useless-suppression",
+    "deprecated-pragma",
+    "use-symbolic-message-instead",
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-comparison-to-zero",
+    # not worth enforcing on this codebase yet
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "invalid-name",                  # physics/RF notation (SNR, BW, P, S, ...)
+    "too-few-public-methods",
+    "too-many-instance-attributes",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-return-statements",
+    "too-many-nested-blocks",
+    "too-many-lines",
+    "no-else-return",
+    "logging-fstring-interpolation",
+    "unnecessary-lambda-assignment",
+    "wrong-import-order",
+    "wrong-import-position",         # bin/*.py: load_dotenv() must run before `from so...` import
+    "broad-exception-caught",        # command/API handlers must always return a response, not crash
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "pylint>=4.0.8",
+    "pytest>=9.1.1",
+]

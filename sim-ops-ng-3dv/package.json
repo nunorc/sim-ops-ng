@@ -1,0 +1,31 @@
+{
+  "name": "sim-ops-ng-3dv",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint . --fix"
+  },
+  "dependencies": {
+    "cesium": "^1.125.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.70.0",
+    "vite": "^6.2.0",
+    "vite-plugin-cesium": "^1.2.23",
+    "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "rollup-plugin-external-globals": {
+      "magic-string": "^0.30.21"
+    }
+  }
+}

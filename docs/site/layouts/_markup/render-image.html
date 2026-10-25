@@ -1,0 +1,20 @@
+{{- /*
+  Image render hook: make the docs' screenshots resolve on the published site.
+
+  The pages in docs/ reference images by a path relative to themselves
+  (images/mcs-aocs.webp), which works in an editor and on GitHub. On the site the
+  pages are mounted into nested sections (/subsystems/aocs/), so that relative path
+  would resolve under the page; docs/images/ is mounted at static/images/ in
+  docs/site/hugo.toml instead, and this rewrites the path to it:
+
+    images/<file>   -> <baseURL>images/<file>
+    everything else -> untouched
+*/ -}}
+
+{{- $src := .Destination -}}
+{{- if hasPrefix $src "images/" -}}
+  {{- $src = relURL $src -}}
+{{- end -}}
+
+<img src="{{ $src | safeURL }}" alt="{{ .PlainText }}"{{ with .Title }} title="{{ . }}"{{ end }} loading="lazy">
+{{- /**/ -}}

@@ -1,0 +1,117 @@
+<script lang="ts">
+import { filterTableRows } from '@/utils/table-filter';
+
+export default {
+	components: {
+
+	},
+	data() {
+		return {
+			commands: [
+				{ 'sub': 'AOCS', 'desc': 'Set AOCS mode SUN', 'tc': 'TC_AOCS_001', 'tm': 'AOCS > AOCS Mode' },
+				{ 'sub': 'AOCS', 'desc': 'Set AOCS mode TARGET', 'tc': 'TC_AOCS_002', 'tm': 'AOCS > AOCS Mode' },
+				{ 'sub': 'AOCS', 'desc': 'Set AOCS mode NADIR', 'tc': 'TC_AOCS_003', 'tm': 'AOCS > AOCS Mode' },
+				{ 'sub': 'AOCS', 'desc': 'Set AOCS chain A', 'tc': 'TC_AOCS_011', 'tm': 'AOCS > AOCS Chain' },
+				{ 'sub': 'AOCS', 'desc': 'Set AOCS chain B', 'tc': 'TC_AOCS_012', 'tm': 'AOCS > AOCS Chain' },
+				{ 'sub': 'AOCS', 'desc': 'Calibrate AOCS sensors', 'tc': 'TC_AOCS_021', 'tm': 'AOCS > AOCS Valid' },
+
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode S_Sup_LBR (hp)', 'tc': 'TC_TTC_001', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode S_Sup_HBR (hp)' , 'tc': 'TC_TTC_002', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode X_Sup_LBR (hp)', 'tc': 'TC_TTC_003', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode X_Sup_HBR (hp)', 'tc': 'TC_TTC_004', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode S_Res_LBR (hp)', 'tc': 'TC_TTC_005', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode X_Res_LBR (hp)' , 'tc': 'TC_TTC_006', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode S_Sub_LBR (hp)', 'tc': 'TC_TTC_007', 'tm': 'TTC > TTC Mode' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC mode X_Sub_LBR (hp)', 'tc': 'TC_TTC_008', 'tm': 'TTC > TTC Mode' },
+
+				{ 'sub': 'TTC', 'desc': 'Set TTC chain A (hp)', 'tc': 'TC_TTC_011', 'tm': 'TTC > TTC Chain' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC chain B (hp)', 'tc': 'TC_TTC_012', 'tm': 'TTC > TTC Chain' },
+				{ 'sub': 'TTC', 'desc': 'Ping spacecraft (hp)', 'tc': 'TC_TTC_021', 'tm': 'TTC > TTC Ping Ack' },
+				{ 'sub': 'TTC', 'desc': 'Enable coherent transmitter (hp)', 'tc': 'TC_TTC_022', 'tm': 'TTC > Coherent' },
+				{ 'sub': 'TTC', 'desc': 'Disable coherent transmitter (hp)', 'tc': 'TC_TTC_023', 'tm': 'TTC > Coherent' },
+				{ 'sub': 'TTC', 'desc': 'Software Reboot MCU (hp)', 'tc': 'TC_TTC_041', 'tm': 'TTC > MCU Status' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC Sb antenna to LGA RHC (hp)', 'tc': 'TC_TTC_051', 'tm': 'TTC > TTC Antenna' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC Sb antenna to LGA LHC (hp)', 'tc': 'TC_TTC_052', 'tm': 'TTC > TTC Antenna' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC Xb antenna to MGA (hp)', 'tc': 'TC_TTC_053', 'tm': 'TTC > TTC Antenna' },
+				{ 'sub': 'TTC', 'desc': 'Set TTC Xb antenna to HGA (hp)', 'tc': 'TC_TTC_054', 'tm': 'TTC > TTC Antenna' },
+				{ 'sub': 'TTC', 'desc': 'Enable ranging (hp)', 'tc': 'TC_TTC_061', 'tm': 'TTC > Ranging' },
+				{ 'sub': 'TTC', 'desc': 'Disable ranging (hp)', 'tc': 'TC_TTC_062', 'tm': 'TTC > Ranging' },
+
+				{ 'sub': 'EPS', 'desc': 'Set EPS chain A', 'tc': 'TC_EPS_001', 'tm': 'EPS > EPS Chain' },
+				{ 'sub': 'EPS', 'desc': 'Set EPS chain B', 'tc': 'TC_EPS_002', 'tm': 'EPS > EPS Chain' },
+				{ 'sub': 'EPS', 'desc': 'Reset solar array 1 electrical channel', 'tc': 'TC_EPS_021', 'tm': 'EPS' },
+				{ 'sub': 'EPS', 'desc': 'Reset solar array 2 electrical channel', 'tc': 'TC_EPS_022', 'tm': 'EPS' },
+				{ 'sub': 'EPS', 'desc': 'Power Cycle AOCS, recovers the configuration state (hp)', 'tc': 'TC_EPS_041', 'tm': 'AOCS' },
+				{ 'sub': 'EPS', 'desc': 'Power Cycle TTC, recovers the configuration state (hp)', 'tc': 'TC_EPS_042', 'tm': 'TTC' },
+				{ 'sub': 'EPS', 'desc': 'Power Cycle ACU (hp)', 'tc': 'TC_EPS_043', 'tm': 'EPS > ACU' },
+				{ 'sub': 'EPS', 'desc': 'Power Cycle PDU (hp)', 'tc': 'TC_EPS_044', 'tm': 'EPS > PDU' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Sb transmitter on (hp)', 'tc': 'TC_EPS_051', 'tm': 'TTC > Sb TX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Sb transmitter off (hp)', 'tc': 'TC_EPS_052', 'tm': 'TTC > Sb TX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Sb receiver on (hp)', 'tc': 'TC_EPS_053', 'tm': 'TTC > Sb RX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Sb receiver off (hp)', 'tc': 'TC_EPS_054', 'tm': 'TTC > Sb RX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Xb transmitter on (hp)', 'tc': 'TC_EPS_055', 'tm': 'TTC > Xb TX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Xb transmitter off (hp)', 'tc': 'TC_EPS_056', 'tm': 'TTC > Xb TX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Xb receiver on (hp)', 'tc': 'TC_EPS_057', 'tm': 'TTC > Xb RX Status' },
+				{ 'sub': 'EPS', 'desc': 'Power TTC Xb receiver off (hp)', 'tc': 'TC_EPS_058', 'tm': 'TTC > Xb RX Status' },
+
+				{ 'sub': 'DHS', 'desc': 'Set DHS chain A', 'tc': 'TC_DHS_001', 'tm': 'DHS > DHS Chain' },
+				{ 'sub': 'DHS', 'desc': 'Set DHS chain B', 'tc': 'TC_DHS_002', 'tm': 'DHS > DHS Chain' },
+				{ 'sub': 'DHS', 'desc': 'Set OBSW to safe mode', 'tc': 'TC_DHS_011', 'tm': 'DHS > OBSW Mode' },
+				{ 'sub': 'DHS', 'desc': 'Set OBSW to nominal mode', 'tc': 'TC_DHS_012', 'tm': 'DHS > OBSW Mode' },
+				{ 'sub': 'DHS', 'desc': 'Enable memory downlink dump', 'tc': 'TC_DHS_021', 'tm': 'DHS > Memory Dump' },
+				{ 'sub': 'DHS', 'desc': 'Disable memory downlink dump', 'tc': 'TC_DHS_022', 'tm': 'DHS > Memory Dump' },
+
+				{ 'sub': 'Payload', 'desc': 'Power on GNSS receiver (nm)', 'tc': 'TC_PL_001', 'tm': 'Payload > GNSS Status' },
+				{ 'sub': 'Payload', 'desc': 'Power off GNSS receiver (nm)', 'tc': 'TC_PL_002', 'tm': 'Payload > GNSS Status' },
+				{ 'sub': 'Payload', 'desc': 'Power on camera (nm)', 'tc': 'TC_PL_011', 'tm': 'Payload > Camera Status' },
+				{ 'sub': 'Payload', 'desc': 'Power off camera (nm)', 'tc': 'TC_PL_012', 'tm': 'Payload > Camera Status' },
+				{ 'sub': 'Payload', 'desc': 'Power on SDR (nm)', 'tc': 'TC_PL_021', 'tm': 'Payload > SDR Status' },
+				{ 'sub': 'Payload', 'desc': 'Power off SDR (nm)', 'tc': 'TC_PL_022', 'tm': 'Payload > SDR Status' }
+			]
+		}
+	},
+	methods: {
+		searchTable() {
+			filterTableRows('myInput', 'myTable');
+		}
+	},
+	mounted() {
+		//this.updateProcedures();
+	}
+}
+</script>
+<template>
+	<h1 class="page-header">Commands <small>Spacecraft Commands Database</small></h1>
+	<hr class="mb-4">
+
+	<div class="row">
+		<div class="col-xl-2 col-lg-2 mb-4">
+			<input id="myInput" @input="searchTable()" class="form-control" type="search" placeholder="Search">
+		</div>
+	</div>
+
+	<div>
+		<table id="myTable" class="table table-bordered mb-3 table-striped">
+			<thead>
+				<tr class="text-center">
+					<th class="text-center">Sub-System</th>
+					<th class="">Action</th>
+					<th class="text-center">TC</th>
+					<th class="text-center">TM</th>
+				</tr>
+			</thead>
+			<tbody class="text-body">
+				<tr v-for="c in commands" :key="c.tc">
+					<td class="text-center">{{ c.sub }}</td>
+					<td class="">{{ c.desc }}</td>
+					<td class="text-center text-capitalize">{{ c.tc }}</td>
+					<td class="text-center text-capitalize">{{ c.tm }}</td>
+				</tr>
+			</tbody>
+		</table>
+		<p>
+			(hp) high priority command<br/>(nm) requires OBSW Mode nominal
+		</p>
+	</div>
+
+</template>
