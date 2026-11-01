@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Each release has a
 `## X.Y.Z - YYYY-MM-DD` section, and its body becomes the GitHub release notes.
 Collect changes under `## Unreleased` and rename it when cutting a release.
 
+## Unreleased
+
+- Fixed false errors and stale state when loading a scenario, and outdated information in the admin panel.
+
 ## 0.0.1 - 2026-10-25
 
 Initial release.

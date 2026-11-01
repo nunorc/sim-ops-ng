@@ -37,6 +37,7 @@ else:
     WS_URL = os.getenv("SIM_OPS_NG_WS_URL", "")  # empty → client builds from window.location (nginx/proxy)
 
 REQUEST_TIMEOUT = 5
+SCENARIO_LOAD_TIMEOUT = 35
 
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -99,14 +100,14 @@ def _backend_get(path, params=None):
         return {"error": "Cannot connect to backend"}, 503
 
 
-def _backend_post(path, payload):
+def _backend_post(path, payload, timeout=REQUEST_TIMEOUT):
     """POST payload to path on the backend; returns (json_or_error_dict, status_code)."""
     try:
         response = requests.post(
             f"{BACKEND_URL}{path}",
             headers=admin_headers(),
             json=payload,
-            timeout=REQUEST_TIMEOUT,
+            timeout=timeout,
         )
         if response.status_code == 200:
             return response.json(), 200
@@ -503,7 +504,7 @@ def load_scenario_api():
     if not filename:
         return {"error": "Filename is required"}, 400
 
-    return _backend_post("/api/scenario/load", {"filename": f"data/{filename}"})
+    return _backend_post("/api/scenario/load", {"filename": f"data/{filename}"}, timeout=SCENARIO_LOAD_TIMEOUT)
 
 
 @app.route("/api/set-data-proxy", methods=["POST"])

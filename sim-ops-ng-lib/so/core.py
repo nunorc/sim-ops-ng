@@ -568,6 +568,7 @@ class SimOps:
 
     def _handle_stop_command(self, _params: dict) -> dict:
         self.stop_loop()
+        self._broadcast_state()
         return {'status': 'stopped'}
 
     def _handle_pause_command(self, _params: dict) -> dict:
@@ -588,10 +589,16 @@ class SimOps:
         return {'status': 'stepped'}
 
     def _handle_next_breakpoint_command(self, params: dict) -> dict:
-        return self._send_cmd('next_breakpoint', params)
+        return self._send_cmd_and_publish('next_breakpoint', params)
 
     def _handle_previous_breakpoint_command(self, params: dict) -> dict:
-        return self._send_cmd('previous_breakpoint', params)
+        return self._send_cmd_and_publish('previous_breakpoint', params)
+
+    def _send_cmd_and_publish(self, action: str, params: dict) -> dict:
+        """Run a command, publishing its effect before the response rather than at the next tick."""
+        result = self._send_cmd(action, params)
+        self._broadcast_state()  # the API answers reads, such as the admin panel's redraw, from the last broadcast
+        return result
 
     def _handle_get_scenario_command(self, _params: dict) -> dict:
         return self.scenario.to_dict() if self.scenario else {}
@@ -618,27 +625,21 @@ class SimOps:
             return {'success': False, 'error': f'Invalid scenario {filename}: {e}'}
 
         was_running = self._running
-        if was_running:
-            self.stop_loop()
+        # a full stop even if not running, so the result doesn't depend on it (overrides, TC stack, data proxy, ...)
+        self.stop_loop()
 
         self.scenario = scenario
         self.time_factor = scenario.time_factor
         self.breakpoint = self.scenario.breakpoints[0]
         self.spacecraft = spacecraft
         self.ground_station = ground_station
-        self.sc_overrides = {}
-        self.gs_overrides = {}
-        self._ts_offset = 0.0
-        with self._tc_lock:
-            self.tc_stack = []
-            self.tc_history = []
 
         self.step_loop()
 
         if was_running:
             self.start_loop()
-        else:
-            self._broadcast_state()
+        # before the response, not at the first tick: the API answers reads from the last broadcast it received
+        self._broadcast_state()
 
         logger.info(f"Loaded scenario: {filename}")
         return {'success': True, 'scenario': self.scenario.to_dict()}

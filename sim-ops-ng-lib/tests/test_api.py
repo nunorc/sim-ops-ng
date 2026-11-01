@@ -114,6 +114,26 @@ def fake_sim_api(monkeypatch):
     server.stop()
 
 
+def test_scenario_load_waits_longer_than_other_commands(offline_api, monkeypatch):
+    """The engine finishes a load even after its caller gives up: a timeout would report failure for a loaded one."""
+    from so.api import LOAD_SCENARIO_TIMEOUT
+    from so.core import SEND_CMD_TIMEOUT
+    api, client = offline_api
+    calls = []
+
+    def send_command(command, params=None, timeout=None):
+        calls.append((command, params, timeout))
+        return {"success": True, "data": {"success": True}}
+    monkeypatch.setattr(api._socket_client, "send_command", send_command)
+
+    response = client.post("/api/scenario/load", headers={"X-Admin-Password": "admin-pw"},
+                           json={"filename": "data/testing.json"})
+    assert response.status_code == 200
+    assert calls == [("load_scenario", {"filename": "data/testing.json"}, LOAD_SCENARIO_TIMEOUT)]
+    # waiting for the admin lock (a queued command), then the sim thread's join in stop_loop
+    assert LOAD_SCENARIO_TIMEOUT > SEND_CMD_TIMEOUT + 5
+
+
 def test_api_reports_sim_failures(fake_sim_api):
     client, results = fake_sim_api
 

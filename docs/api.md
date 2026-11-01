@@ -71,7 +71,7 @@ Without the admin password (and on the user WebSocket), breakpoints come without
 | POST | `/api/stop`, `/api/pause`, `/api/resume` | Loop lifecycle ([sim_loop.md](sim_loop.md#6-lifecycle)). |
 | POST | `/api/next-breakpoint[?restart=true]`, `/api/previous-breakpoint` | Move between breakpoints; returns the new breakpoint, 400 if there is none. |
 | GET | `/api/scenarios` | `*.json` files in `data/`. |
-| POST | `/api/scenario/load` | `{filename}` — load a scenario from `data/`. |
+| POST | `/api/scenario/load` | `{filename}` — load a scenario from `data/`, as a stop would reset it, restarting the loop if it was running. Reads see the new scenario once this returns. |
 | GET | `/api/overrides` | Active overrides. |
 | POST | `/api/override/set`, `/api/override/unset` | `{attr, value}` — see [admin.md](admin.md#2-overrides). |
 | POST | `/api/admin/set-state` | `{attr, value}` — set a spacecraft field directly, bypassing commanding. |

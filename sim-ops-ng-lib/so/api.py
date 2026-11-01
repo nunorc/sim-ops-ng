@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 WS_SUBPROTOCOL = "sim-ops"
 WS_PASSWORD_PREFIX = "sim-ops.password."
 
+# seconds to wait for a scenario load
+LOAD_SCENARIO_TIMEOUT = 30.0
+
 
 def ws_password(ws: WebSocket) -> Optional[str]:
     """The password a WebSocket client offered in Sec-WebSocket-Protocol, if any."""
@@ -264,7 +267,8 @@ class SimOpsAPI:
         def load_scenario_route(req: LoadScenarioRequest, x_admin_password: str = Header(None)):
             if not self._verify_admin_password(x_admin_password):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin password required")
-            result = self._socket_client.send_command('load_scenario', {'filename': req.filename})
+            result = self._socket_client.send_command('load_scenario', {'filename': req.filename},
+                                                      timeout=LOAD_SCENARIO_TIMEOUT)
             if result.get('success'):
                 data = result.get('data', {})
                 if data.get('success'):

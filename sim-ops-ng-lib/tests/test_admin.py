@@ -57,6 +57,21 @@ def test_backend_error_detail_is_kept(logged_in, monkeypatch):
     assert response.get_json()["error"] == detail
 
 
+def test_scenario_load_outlasts_the_api(logged_in, monkeypatch):
+    """The API must report a slow load's outcome: giving up first would show an error for a loaded scenario."""
+    import so.admin
+    from so.api import LOAD_SCENARIO_TIMEOUT
+    timeouts = []
+
+    def post(*_args, **kwargs):
+        timeouts.append(kwargs["timeout"])
+        return _fake_response(200, {"success": True})
+    monkeypatch.setattr(so.admin.requests, "post", post)
+
+    assert logged_in.post("/api/scenario/load", json={"filename": "testing.json"}).status_code == 200
+    assert timeouts[0] > LOAD_SCENARIO_TIMEOUT
+
+
 def test_safe_mode_reports_failure(logged_in, monkeypatch):
     import so.admin
     monkeypatch.setattr(so.admin.requests, "post", lambda *a, **k: _fake_response(400, {"detail": "sim stopped"}))

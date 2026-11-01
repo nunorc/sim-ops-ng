@@ -220,6 +220,87 @@ def test_failed_scenario_load_leaves_sim_untouched(sim, monkeypatch):
         sim.stop_loop()
 
 
+@pytest.fixture
+def subscribed(sim):
+    """(sim, socket client, states it received): the API's view of the engine."""
+    from so.communication import SocketClient
+    states = []
+    client = SocketClient(port=sim._socket_server.port)
+    client.register_broadcast_handler("state", states.append)
+    assert wait_for(lambda: sim._socket_server._server_socket is not None)
+    client.start()
+    assert wait_for(lambda: states)
+    yield sim, client, states
+    client.disconnect()
+
+
+@pytest.mark.parametrize("lifecycle", ["stopped", "running", "paused"])
+def test_scenario_load_is_published_before_its_response(subscribed, lifecycle):
+    """The API answers reads from the last broadcast, so a page reloaded after the response sees the new scenario."""
+    sim, client, states = subscribed
+    if lifecycle != "stopped":
+        sim.start_loop()
+    if lifecycle == "paused":
+        sim.pause_loop()
+    try:
+        result = client.send_command("load_scenario", {"filename": "data/testing.json"})
+        latest = states[-1]  # no waiting: the broadcast came first on the same connection
+        assert result["data"]["success"] is True
+        assert latest["scenario"]["name"] == "testing"
+        assert latest["running"] is (lifecycle != "stopped")
+        assert latest["paused"] is False
+    finally:
+        sim.stop_loop()
+
+
+def test_stop_publishes_the_reset_state(subscribed):
+    """No tick follows a stop, so without its own broadcast clients keep showing a running sim."""
+    sim, client, states = subscribed
+    client.send_command("start", {"breakpoint": 0})
+    assert wait_for(lambda: states[-1]["running"] is True)
+    sim._handle_next_breakpoint_command({})
+
+    client.send_command("stop")
+
+    latest = states[-1]
+    assert latest["running"] is False
+    assert latest["breakpoint"]["name"] == sim.scenario.breakpoints[0].name
+
+
+@pytest.mark.parametrize("paused", [False, True])
+def test_breakpoint_move_is_published_before_its_response(subscribed, paused):
+    """The admin panel redraws from the API's cache right after a move, so it must already hold the new pass."""
+    sim, client, states = subscribed
+    client.send_command("start", {"breakpoint": 0})
+    if paused:
+        sim.pause_loop()
+    names = [bp.name for bp in sim.scenario.breakpoints]
+
+    assert client.send_command("next_breakpoint")["data"]["success"] is True
+    assert states[-1]["breakpoint"]["name"] == names[1]  # no waiting: the broadcast came first on the connection
+
+    assert client.send_command("previous_breakpoint")["data"]["success"] is True
+    assert states[-1]["breakpoint"]["name"] == names[0]
+
+
+@pytest.mark.parametrize("running", [False, True])
+def test_scenario_load_gives_the_same_state_whether_running_or_not(sim, running):
+    from so.data_model import DataProxy
+    sim._handle_set_data_proxy({"mode": "EGSE"})
+    sim._do_set_override({"attr": "no_tc", "value": "true"})
+    if running:
+        sim.start_loop()
+    try:
+        assert sim._handle_load_scenario({"filename": "data/testing.json"})["success"] is True
+        assert sim.data_proxy == DataProxy.SLE
+        assert sim.gs_overrides == {} and sim.sc_overrides == {}
+        assert sim.scenario.name == "testing" and sim.time_factor == 0.5
+        assert sim.breakpoint is sim.scenario.breakpoints[0]
+        assert sim._running is running
+    finally:
+        sim.stop_loop()
+
+
 def test_scenario_serialises_enums_by_name():
     from so.core import load_scenario
     from so.communication import convert_to_serializable

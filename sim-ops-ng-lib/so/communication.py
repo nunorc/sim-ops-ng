@@ -366,8 +366,9 @@ class SocketClient:
             self._connected = False
             return False
 
-    def send_command(self, command: str, params: Optional[Dict] = None) -> Dict[str, Any]:
-        """Send a command and wait for the server's response (with 'success' and other fields)."""
+    def send_command(self, command: str, params: Optional[Dict] = None,
+                     timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Send a command and wait for the server's response, up to `timeout` (default: the client's) seconds."""
         if not self._connected or not self._socket:
             if not self.connect():
                 return {'success': False, 'error': 'Not connected'}
@@ -392,7 +393,7 @@ class SocketClient:
             return {'success': False, 'error': 'Failed to send message'}
 
         # Wait for response with timeout
-        answered = event.wait(timeout=self.timeout)
+        answered = event.wait(timeout=self.timeout if timeout is None else timeout)
         with self._command_lock:
             pending = self._pending_commands.pop(cmd_id)
         if not answered:

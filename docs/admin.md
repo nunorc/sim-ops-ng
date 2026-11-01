@@ -18,7 +18,8 @@ Log in with `SIM_OPS_NG_ADMIN_PASSWORD`, then:
 - **Start / stop / pause / resume** the simulation. Stopping resets everything
   ([sim_loop.md](sim_loop.md#6-lifecycle)).
 - **Next / previous breakpoint** — move between passes.
-- **Load a scenario** from `data/`.
+- **Load a scenario** from `data/`. Whatever the state, this resets everything like a stop, and the
+  loop restarts only if it was running. Open panels reload when the scenario's name changes.
 - **Data proxy** — `SLE` (telemetry only at `FRAME_LOCK`) or `EGSE` (always).
 - **Change the user password** — disconnects every operator.
 - **Set spacecraft state** (`/api/admin/set-state`), bypassing the bus and link checks; only the

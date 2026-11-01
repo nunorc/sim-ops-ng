@@ -745,7 +745,13 @@
             updateUI(message) {
                 try {
                     if (message.type !== 'state') return;
+                    if (SCENARIO_DATA.name && message.scenario && message.scenario.name !== SCENARIO_DATA.name) {
+                        window.location.reload();
+                        return;
+                    }
                     this.updateSimTime(message.ts);
+                    const breakpointEl = document.getElementById('current-breakpoint');
+                    if (breakpointEl && message.breakpoint) breakpointEl.textContent = message.breakpoint.name;
                     this.updateRunningStatus(message.running, message.paused);
                     this.updateDataProxyStatus(message.data_proxy, message.ground_station && message.ground_station.status_dl);
                     if (message.spacecraft) this.updateScState(message.spacecraft);
@@ -1674,7 +1680,7 @@
                         <div class="subsection-title">Info</div>
                         <div class="data-grid">
                             <div class="data-item"><span class="data-label">Scenario</span><span class="data-value">{% if scenario %}<a href="#" class="scenario-link" onclick="openScenarioModal(); return false;">{{ scenario.name or 'N/A' }}</a>{% else %}N/A{% endif %}</span></div>
-                            <div class="data-item"><span class="data-label">Breakpoint</span><span class="data-value">{{ breakpoint.name or 'N/A' }}</span></div>
+                            <div class="data-item"><span class="data-label">Breakpoint</span><span id="current-breakpoint" class="data-value">{{ breakpoint.name or 'N/A' }}</span></div>
                             <div class="data-item"><span class="data-label">Time Factor</span><span class="data-value">{{ scenario.time_factor }}</span></div>
                         </div>
                     </div>
